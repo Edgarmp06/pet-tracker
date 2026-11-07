@@ -21,9 +21,13 @@ import { useDependencies } from '../context/DependencyContext';
 import { useActivePet } from '../context/ActivePetContext';
 import { Dropping, PoopConsistency } from '../../domain/entities/Dropping';
 import { Pet } from '../../domain/entities/Pet';
+import { ClinicalMetricsChart } from '../components/ClinicalMetricsChart';
+import { ClinicalMetrics } from '../../application/use-cases/GetClinicalMetricsUseCase';
 
 const WALK_REMINDER_ENABLED_KEY = '@pet_tracker_walk_reminder_enabled';
 const WALK_REMINDER_TIME = { hour: 20, minute: 0 }; // 20:00, hora habitual de paseo
+
+type MetricsRangeDays = 7 | 30;
 
 interface Props {
   onLogout?: () => void;
@@ -38,6 +42,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
     imagePickerAdapter,
     scheduleWalkReminderUseCase,
     cancelWalkReminderUseCase,
+    getClinicalMetricsUseCase,
   } = useDependencies();
   const {
     pets,
@@ -51,6 +56,12 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   const [history, setHistory] = useState<Dropping[]>([]);
   const [isWalkReminderEnabled, setIsWalkReminderEnabled] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [clinicalMetrics, setClinicalMetrics] = useState<ClinicalMetrics | null>(
+    null,
+  );
+  const [metricsRangeDays, setMetricsRangeDays] =
+    useState<MetricsRangeDays>(30);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
 
   // Estado del modal para crear mascota
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -75,17 +86,40 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
     }
   };
 
+  const loadMetrics = async (petId: string, days: MetricsRangeDays) => {
+    setIsLoadingMetrics(true);
+    try {
+      const metrics = await getClinicalMetricsUseCase.execute(petId, days);
+      setClinicalMetrics(metrics);
+    } catch (error) {
+      console.error('Error al cargar las métricas clínicas:', error);
+      setClinicalMetrics(null);
+    } finally {
+      setIsLoadingMetrics(false);
+    }
+  };
+
   useFocusEffect(
     React.useCallback(() => {
       if (selectedPet) {
         loadHistory(selectedPet.id);
+        loadMetrics(selectedPet.id, metricsRangeDays);
       } else {
         setHistory([]);
         setIsLoadingHistory(false);
+        setClinicalMetrics(null);
+        setIsLoadingMetrics(false);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedPet?.id]),
   );
+
+  const handleChangeMetricsRange = (days: MetricsRangeDays) => {
+    setMetricsRangeDays(days);
+    if (selectedPet) {
+      loadMetrics(selectedPet.id, days);
+    }
+  };
 
   const handleSelectPet = async (pet: Pet) => {
     if (isWalkInProgress) {
@@ -494,6 +528,45 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
         </View>
       )}
 
+      {/* Gráficas Clínicas Avanzadas */}
+      {selectedPet && (
+        <View style={styles.statsCard}>
+          <View style={styles.metricsHeaderRow}>
+            <Text style={styles.statsTitle}>📈 Gráficas Clínicas</Text>
+            <View style={styles.rangeSelector}>
+              {([7, 30] as MetricsRangeDays[]).map((days) => (
+                <TouchableOpacity
+                  key={days}
+                  style={[
+                    styles.rangeChip,
+                    metricsRangeDays === days && styles.rangeChipSelected,
+                  ]}
+                  onPress={() => handleChangeMetricsRange(days)}
+                >
+                  <Text
+                    style={[
+                      styles.rangeChipText,
+                      metricsRangeDays === days &&
+                        styles.rangeChipTextSelected,
+                    ]}
+                  >
+                    {days}d
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {isLoadingMetrics ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="small" color="#4CAF50" />
+            </View>
+          ) : (
+            <ClinicalMetricsChart metrics={clinicalMetrics} />
+          )}
+        </View>
+      )}
+
       {/* Historial Clínico de la Mascota Seleccionada */}
       <Text style={styles.historyTitle}>
         📋 Historial Clínico de {selectedPet?.name || ''} ({history.length})
@@ -727,6 +800,24 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statBadgeLabel: { fontSize: 11, color: '#666', marginTop: 2 },
+  metricsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  rangeSelector: { flexDirection: 'row' },
+  rangeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginLeft: 6,
+  },
+  rangeChipSelected: { backgroundColor: '#1976D2', borderColor: '#1976D2' },
+  rangeChipText: { fontSize: 12, color: '#666', fontWeight: '600' },
+  rangeChipTextSelected: { color: '#fff' },
   shareReportBtn: {
     backgroundColor: '#1976D2',
     paddingVertical: 10,

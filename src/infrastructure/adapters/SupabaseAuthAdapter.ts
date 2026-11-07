@@ -42,6 +42,12 @@ export class SupabaseAuthAdapter implements IAuthService {
     });
 
     if (error || !data.user) {
+      // Supabase no distingue entre "no existe" y "contraseña incorrecta"
+      // por seguridad; devolvemos el mismo mensaje genérico en ambos casos
+      // y nunca creamos una cuenta nueva desde el flujo de login.
+      if (error?.message === 'Invalid login credentials') {
+        throw new Error('Email o contraseña incorrectos.');
+      }
       throw new Error(error?.message || 'No se pudo iniciar sesión.');
     }
 

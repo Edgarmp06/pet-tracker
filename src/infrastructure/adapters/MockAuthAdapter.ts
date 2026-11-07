@@ -3,7 +3,20 @@ import { IAuthService } from '../../domain/ports/IAuthService';
 import { User } from '../../domain/entities/User';
 
 const USER_STORAGE_KEY = '@pet_tracker_current_user';
+const USERS_REGISTRY_KEY = '@pet_tracker_mock_users';
 
+interface MockUserRecord {
+  id: string;
+  email: string;
+  password: string;
+  name: string;
+  isPro: boolean;
+}
+
+// Adapter de desarrollo/pruebas sin backend: simula un registro real de
+// usuarios en AsyncStorage para que login y register se comporten como lo
+// harían contra Supabase (login rechaza credenciales inexistentes en vez de
+// crear la cuenta sobre la marcha).
 export class MockAuthAdapter implements IAuthService {
   async getCurrentUser(): Promise<User | null> {
     let json: string | null;
@@ -25,22 +38,76 @@ export class MockAuthAdapter implements IAuthService {
     }
   }
 
-  // El mock no comprueba contraseñas: sirve solo como sesión local simulada
-  // para desarrollo/pruebas sin backend. `password` se ignora a propósito.
-  async login(email: string, _password: string): Promise<User> {
-    return this.createSession(email);
+  async login(email: string, password: string): Promise<User> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const users = await this.readUsersRegistry();
+    const record = users[normalizedEmail];
+
+    if (!record || record.password !== password) {
+      throw new Error('Email o contraseña incorrectos.');
+    }
+
+    return this.startSession(record);
   }
 
-  async register(email: string, _password: string): Promise<User> {
-    return this.createSession(email);
-  }
+  async register(email: string, password: string): Promise<User> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const users = await this.readUsersRegistry();
 
-  private async createSession(email: string): Promise<User> {
-    const user = new User({
+    if (users[normalizedEmail]) {
+      throw new Error('Ya existe una cuenta con ese correo electrónico.');
+    }
+
+    const record: MockUserRecord = {
       id: 'usr_' + Math.random().toString(36).substring(2, 7),
-      email,
-      name: email.split('@')[0],
+      email: normalizedEmail,
+      password,
+      name: normalizedEmail.split('@')[0],
       isPro: false,
+    };
+
+    users[normalizedEmail] = record;
+    await this.writeUsersRegistry(users);
+
+    return this.startSession(record);
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
+    } catch (error) {
+      console.error('No se pudo cerrar la sesión:', error);
+      throw new Error('No se pudo cerrar sesión. Inténtalo de nuevo.');
+    }
+  }
+
+  private async readUsersRegistry(): Promise<Record<string, MockUserRecord>> {
+    try {
+      const json = await AsyncStorage.getItem(USERS_REGISTRY_KEY);
+      return json ? JSON.parse(json) : {};
+    } catch (error) {
+      console.error('No se pudo leer el registro de usuarios:', error);
+      return {};
+    }
+  }
+
+  private async writeUsersRegistry(
+    users: Record<string, MockUserRecord>,
+  ): Promise<void> {
+    try {
+      await AsyncStorage.setItem(USERS_REGISTRY_KEY, JSON.stringify(users));
+    } catch (error) {
+      console.error('No se pudo guardar el registro de usuarios:', error);
+      throw new Error('No se pudo crear la cuenta. Inténtalo de nuevo.');
+    }
+  }
+
+  private async startSession(record: MockUserRecord): Promise<User> {
+    const user = new User({
+      id: record.id,
+      email: record.email,
+      name: record.name,
+      isPro: record.isPro,
     });
 
     try {
@@ -51,14 +118,5 @@ export class MockAuthAdapter implements IAuthService {
     }
 
     return user;
-  }
-
-  async logout(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(USER_STORAGE_KEY);
-    } catch (error) {
-      console.error('No se pudo cerrar la sesión:', error);
-      throw new Error('No se pudo cerrar sesión. Inténtalo de nuevo.');
-    }
   }
 }

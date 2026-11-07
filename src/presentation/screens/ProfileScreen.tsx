@@ -32,6 +32,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
     pets,
     activePet: selectedPet,
     isLoading: isLoadingPets,
+    isWalkInProgress,
     selectPet,
     refreshPets,
   } = useActivePet();
@@ -75,6 +76,14 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   );
 
   const handleSelectPet = async (pet: Pet) => {
+    if (isWalkInProgress) {
+      Alert.alert(
+        'Paseo en curso',
+        'Termina el paseo actual antes de cambiar de mascota activa.',
+      );
+      return;
+    }
+
     try {
       await selectPet(pet);
       await loadHistory(pet.id);
@@ -82,7 +91,9 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
       console.error('Error al cambiar de mascota activa:', error);
       Alert.alert(
         'No se pudo cambiar de mascota',
-        'Ocurrió un problema al guardar la mascota activa. Inténtalo de nuevo.',
+        error instanceof Error
+          ? error.message
+          : 'Ocurrió un problema al guardar la mascota activa. Inténtalo de nuevo.',
       );
     }
   };
@@ -141,7 +152,15 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
       setNewPetAvatar(null);
 
       await refreshPets();
-      await handleSelectPet(newPet);
+
+      if (isWalkInProgress) {
+        Alert.alert(
+          'Mascota creada',
+          `${newPet.name} se activará automáticamente cuando termines el paseo en curso.`,
+        );
+      } else {
+        await handleSelectPet(newPet);
+      }
     } catch (error) {
       console.error('Error al crear la mascota:', error);
       Alert.alert(
@@ -336,7 +355,9 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
       {/* Selector de Mascotas (Carrusel horizontal) */}
-      <Text style={styles.sectionHeader}>🐾 Mis Mascotas</Text>
+      <Text style={styles.sectionHeader}>
+        🐾 Mis Mascotas{isWalkInProgress ? ' (bloqueado durante el paseo)' : ''}
+      </Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -347,8 +368,13 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
           return (
             <TouchableOpacity
               key={pet.id}
-              style={[styles.petChip, isSelected && styles.petChipSelected]}
+              style={[
+                styles.petChip,
+                isSelected && styles.petChipSelected,
+                isWalkInProgress && styles.petChipDisabled,
+              ]}
               onPress={() => handleSelectPet(pet)}
+              disabled={isWalkInProgress}
             >
               {pet.avatarUri ? (
                 <Image
@@ -579,6 +605,9 @@ const styles = StyleSheet.create({
   petChipSelected: {
     backgroundColor: '#4CAF50',
     borderColor: '#4CAF50',
+  },
+  petChipDisabled: {
+    opacity: 0.4,
   },
   chipAvatar: { width: 24, height: 24, borderRadius: 12, marginRight: 8 },
   chipEmoji: { fontSize: 16, marginRight: 6 },

@@ -6,6 +6,7 @@ export interface WalkProps {
   startTime: Date;
   endTime?: Date;
   route: Location[];
+  distanceMeters?: number;
 }
 
 export class Walk {
@@ -14,6 +15,7 @@ export class Walk {
   readonly startTime: Date;
   private _endTime?: Date;
   private _route: Location[];
+  private _distanceMeters: number;
 
   constructor(props: WalkProps) {
     this.id = props.id;
@@ -21,6 +23,8 @@ export class Walk {
     this.startTime = props.startTime;
     this._endTime = props.endTime;
     this._route = props.route || [];
+    this._distanceMeters =
+      props.distanceMeters ?? Walk.calculateDistanceMeters(this._route);
   }
 
   get endTime(): Date | undefined {
@@ -29,6 +33,16 @@ export class Walk {
 
   get route(): Location[] {
     return [...this._route];
+  }
+
+  get distanceMeters(): number {
+    return this._distanceMeters;
+  }
+
+  /** Duración del paseo en milisegundos; `undefined` si aún está en curso. */
+  get durationMs(): number | undefined {
+    if (!this._endTime) return undefined;
+    return this._endTime.getTime() - this.startTime.getTime();
   }
 
   addLocation(location: Location): void {
@@ -43,5 +57,14 @@ export class Walk {
       throw new Error('El paseo ya ha finalizado');
     }
     this._endTime = endTime;
+    this._distanceMeters = Walk.calculateDistanceMeters(this._route);
+  }
+
+  static calculateDistanceMeters(route: Location[]): number {
+    let total = 0;
+    for (let i = 1; i < route.length; i++) {
+      total += route[i - 1].distanceTo(route[i]);
+    }
+    return total;
   }
 }

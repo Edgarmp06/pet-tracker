@@ -16,6 +16,8 @@ interface ActivePetContextType {
   pets: Pet[];
   activePet: Pet | null;
   isLoading: boolean;
+  isWalkInProgress: boolean;
+  setWalkInProgress: (inProgress: boolean) => void;
   selectPet: (pet: Pet) => Promise<void>;
   refreshPets: () => Promise<void>;
   ensureActivePet: () => Promise<Pet>;
@@ -30,10 +32,17 @@ export const ActivePetProvider: React.FC<{ children: React.ReactNode }> = ({
   const [pets, setPets] = useState<Pet[]>([]);
   const [activePet, setActivePet] = useState<Pet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isWalkInProgress, setIsWalkInProgress] = useState(false);
 
   // Espejo síncrono de `activePet` para poder leerlo fuera del ciclo de
   // renderizado (p.ej. desde ensureActivePet), ya que setState es asíncrono.
   const activePetRef = useRef<Pet | null>(null);
+  const isWalkInProgressRef = useRef(false);
+
+  const setWalkInProgress = useCallback((inProgress: boolean) => {
+    isWalkInProgressRef.current = inProgress;
+    setIsWalkInProgress(inProgress);
+  }, []);
 
   const applyActivePet = (pet: Pet | null) => {
     activePetRef.current = pet;
@@ -81,6 +90,12 @@ export const ActivePetProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [getPetsUseCase, savePetUseCase, authService]);
 
   const selectPet = useCallback(async (pet: Pet) => {
+    if (isWalkInProgressRef.current) {
+      throw new Error(
+        'Termina el paseo en curso antes de cambiar de mascota activa.',
+      );
+    }
+
     applyActivePet(pet);
     try {
       await AsyncStorage.setItem(ACTIVE_PET_KEY, pet.id);
@@ -110,7 +125,16 @@ export const ActivePetProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <ActivePetContext.Provider
-      value={{ pets, activePet, isLoading, selectPet, refreshPets, ensureActivePet }}
+      value={{
+        pets,
+        activePet,
+        isLoading,
+        isWalkInProgress,
+        setWalkInProgress,
+        selectPet,
+        refreshPets,
+        ensureActivePet,
+      }}
     >
       {children}
     </ActivePetContext.Provider>

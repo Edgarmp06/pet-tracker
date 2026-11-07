@@ -19,10 +19,16 @@ import { PoopConsistency } from '../../domain/entities/Dropping';
 
 export const WalkScreen = () => {
   const insets = useSafeAreaInsets();
-  const { recordDroppingUseCase, gpsService } = useDependencies();
-  const { activePet, isLoading: isLoadingPet, ensureActivePet } =
-    useActivePet();
+  const { recordDroppingUseCase, gpsService, startWalkUseCase, endWalkUseCase } =
+    useDependencies();
+  const {
+    activePet,
+    isLoading: isLoadingPet,
+    ensureActivePet,
+    setWalkInProgress,
+  } = useActivePet();
   const [isWalking, setIsWalking] = useState(false);
+  const [activeWalkId, setActiveWalkId] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [route, setRoute] = useState<Location[]>([]);
   const [poopLocations, setPoopLocations] = useState<Location[]>([]);
@@ -53,33 +59,71 @@ export const WalkScreen = () => {
 
   const handleStartWalk = async () => {
     try {
+      const pet = await ensureActivePet();
+
       const hasPermission = await gpsService.requestPermissions();
       if (!hasPermission) {
         Alert.alert('Permiso denegado', 'Se requiere acceso al GPS.');
         return;
       }
+
+      const walk = await startWalkUseCase.execute(pet.id);
+
       const initialLoc = await gpsService.getCurrentLocation();
+      const initialRoute = initialLoc ? [initialLoc] : [];
       if (initialLoc) {
         setCurrentLocation(initialLoc);
-        setRoute([initialLoc]);
       }
+      setRoute(initialRoute);
       setPoopLocations([]);
+      setActiveWalkId(walk.id);
+      setWalkInProgress(true);
       setIsWalking(true);
     } catch (error) {
       console.error('Error al iniciar el paseo:', error);
       Alert.alert(
         'No se pudo iniciar el paseo',
-        'Ocurrió un problema al acceder al GPS. Inténtalo de nuevo.',
+        error instanceof Error
+          ? error.message
+          : 'Ocurrió un problema al acceder al GPS. Inténtalo de nuevo.',
       );
     }
   };
 
-  const handleEndWalk = () => {
-    setIsWalking(false);
-    Alert.alert(
-      'Paseo Guardado',
-      `Paseo finalizado con ${poopLocations.length} deposición(es) registrada(s).`,
-    );
+  const handleEndWalk = async () => {
+    if (!activeWalkId) {
+      setIsWalking(false);
+      setWalkInProgress(false);
+      return;
+    }
+
+    try {
+      const walk = await endWalkUseCase.execute({
+        walkId: activeWalkId,
+        route,
+      });
+
+      setIsWalking(false);
+      setWalkInProgress(false);
+      setActiveWalkId(null);
+
+      const distanceKm = (walk.distanceMeters / 1000).toFixed(2);
+      const durationMin = walk.durationMs
+        ? Math.round(walk.durationMs / 60000)
+        : 0;
+
+      Alert.alert(
+        'Paseo Guardado',
+        `Paseo finalizado con ${poopLocations.length} deposición(es), ` +
+          `${distanceKm} km recorridos en ${durationMin} min.`,
+      );
+    } catch (error) {
+      console.error('Error al finalizar el paseo:', error);
+      Alert.alert(
+        'No se pudo guardar el paseo',
+        'Ocurrió un problema al guardar el paseo. Puedes intentarlo de nuevo.',
+      );
+    }
   };
 
   const handleOpenPoopModal = () => {
@@ -96,6 +140,7 @@ export const WalkScreen = () => {
 
       await recordDroppingUseCase.execute({
         petId: pet.id,
+        walkId: activeWalkId || undefined,
         latitude: locToUse?.latitude,
         longitude: locToUse?.longitude,
         consistency: selectedConsistency,
@@ -134,7 +179,7 @@ export const WalkScreen = () => {
           {isLoadingPet
             ? 'Cargando mascota activa...'
             : activePet
-              ? `Paseando con ${activePet.name}`
+              ? `Paseando con ${activePet.name}${isWalking ? ' 🔒' : ''}`
               : 'Sin mascota activa'}
         </Text>
       </View>

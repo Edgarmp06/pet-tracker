@@ -26,6 +26,7 @@ export const WalkScreen = () => {
     startWalkUseCase,
     endWalkUseCase,
     getActiveWalkUseCase,
+    checkIntestinalHealthAlertUseCase,
   } = useDependencies();
   const {
     activePet,
@@ -253,6 +254,14 @@ export const WalkScreen = () => {
 
       setIsModalVisible(false);
       Alert.alert('¡Registrado!', `💩 Deposición guardada con éxito.`);
+
+      // Alerta clínica automática: no debe impedir que el registro se haya
+      // guardado si falla (p.ej. sin permiso de notificaciones).
+      checkIntestinalHealthAlertUseCase
+        .execute(pet.id, pet.name)
+        .catch((error) =>
+          console.warn('No se pudo comprobar la alerta de salud intestinal:', error),
+        );
     } catch (error) {
       console.error('Error al registrar la deposición:', error);
       Alert.alert(

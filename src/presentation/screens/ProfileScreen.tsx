@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,14 +11,19 @@ import {
   TextInput,
   ScrollView,
   Share,
+  Switch,
   ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDependencies } from '../context/DependencyContext';
 import { useActivePet } from '../context/ActivePetContext';
 import { Dropping, PoopConsistency } from '../../domain/entities/Dropping';
 import { Pet } from '../../domain/entities/Pet';
+
+const WALK_REMINDER_ENABLED_KEY = '@pet_tracker_walk_reminder_enabled';
+const WALK_REMINDER_TIME = { hour: 20, minute: 0 }; // 20:00, hora habitual de paseo
 
 interface Props {
   onLogout?: () => void;
@@ -26,8 +31,14 @@ interface Props {
 
 export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   const insets = useSafeAreaInsets();
-  const { droppingRepository, savePetUseCase, authService, imagePickerAdapter } =
-    useDependencies();
+  const {
+    droppingRepository,
+    savePetUseCase,
+    authService,
+    imagePickerAdapter,
+    scheduleWalkReminderUseCase,
+    cancelWalkReminderUseCase,
+  } = useDependencies();
   const {
     pets,
     activePet: selectedPet,
@@ -38,6 +49,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   } = useActivePet();
 
   const [history, setHistory] = useState<Dropping[]>([]);
+  const [isWalkReminderEnabled, setIsWalkReminderEnabled] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
   // Estado del modal para crear mascota
@@ -190,6 +202,32 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
         },
       },
     ]);
+  };
+
+  useEffect(() => {
+    AsyncStorage.getItem(WALK_REMINDER_ENABLED_KEY)
+      .then((value) => setIsWalkReminderEnabled(value === 'true'))
+      .catch((error) =>
+        console.error('No se pudo leer la preferencia de recordatorio:', error),
+      );
+  }, []);
+
+  const handleToggleWalkReminder = async (enabled: boolean) => {
+    try {
+      if (enabled) {
+        await scheduleWalkReminderUseCase.execute(WALK_REMINDER_TIME);
+      } else {
+        await cancelWalkReminderUseCase.execute();
+      }
+      await AsyncStorage.setItem(WALK_REMINDER_ENABLED_KEY, String(enabled));
+      setIsWalkReminderEnabled(enabled);
+    } catch (error) {
+      console.error('Error al cambiar el recordatorio de paseo:', error);
+      Alert.alert(
+        'No se pudo actualizar el recordatorio',
+        'Comprueba que la app tenga permiso para enviar notificaciones e inténtalo de nuevo.',
+      );
+    }
   };
 
   const formatConsistency = (c?: string) => {
@@ -517,6 +555,17 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
       />
       )}
 
+      <View style={styles.reminderRow}>
+        <Text style={styles.reminderText}>
+          🔔 Recordatorio diario de paseo ({WALK_REMINDER_TIME.hour}:
+          {String(WALK_REMINDER_TIME.minute).padStart(2, '0')})
+        </Text>
+        <Switch
+          value={isWalkReminderEnabled}
+          onValueChange={handleToggleWalkReminder}
+        />
+      </View>
+
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutText}>🚪 Cerrar Sesión</Text>
       </TouchableOpacity>
@@ -736,6 +785,19 @@ const styles = StyleSheet.create({
   },
   coordsText: { fontSize: 11, color: '#888', marginTop: 4 },
   poopBadge: { fontSize: 22, marginLeft: 4 },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  reminderText: { fontSize: 13, color: '#444', fontWeight: '600', flex: 1, marginRight: 10 },
   logoutBtn: {
     backgroundColor: '#fff',
     borderWidth: 1,

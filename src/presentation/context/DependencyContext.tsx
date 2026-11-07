@@ -9,6 +9,7 @@ import { SupabaseDroppingRepository } from '../../infrastructure/adapters/Supaba
 import { SupabaseWalkRepository } from '../../infrastructure/adapters/SupabaseWalkRepository';
 import { ExpoGpsAdapter } from '../../infrastructure/adapters/ExpoGpsAdapter';
 import { ExpoImagePickerAdapter } from '../../infrastructure/adapters/ExpoImagePickerAdapter';
+import { ExpoNotificationAdapter } from '../../infrastructure/adapters/ExpoNotificationAdapter';
 import { isSupabaseConfigured } from '../../infrastructure/config/supabaseClient';
 import { SyncQueue } from '../../infrastructure/sync/SyncQueue';
 import { SyncManager } from '../../infrastructure/sync/SyncManager';
@@ -23,18 +24,23 @@ import {
 import { StartWalkUseCase } from '../../application/use-cases/StartWalkUseCase';
 import { EndWalkUseCase } from '../../application/use-cases/EndWalkUseCase';
 import { GetActiveWalkUseCase } from '../../application/use-cases/GetActiveWalkUseCase';
+import { CheckIntestinalHealthAlertUseCase } from '../../application/use-cases/CheckIntestinalHealthAlertUseCase';
+import { ScheduleWalkReminderUseCase } from '../../application/use-cases/ScheduleWalkReminderUseCase';
+import { CancelWalkReminderUseCase } from '../../application/use-cases/CancelWalkReminderUseCase';
 import { IAuthService } from '../../domain/ports/IAuthService';
 import { IPetRepository } from '../../domain/ports/IPetRepository';
 import { IDroppingRepository } from '../../domain/ports/IDroppingRepository';
 import { IWalkRepository } from '../../domain/ports/IWalkRepository';
 import { IGpsService } from '../../domain/ports/IGpsService';
 import { IImagePickerService } from '../../domain/ports/IImagePickerService';
+import { INotificationService } from '../../domain/ports/INotificationService';
 
 const localPetRepository = new AsyncStoragePetRepository();
 const localDroppingRepository = new AsyncStorageDroppingRepository();
 const localWalkRepository = new AsyncStorageWalkRepository();
 const gpsService = new ExpoGpsAdapter();
 const imagePickerAdapter = new ExpoImagePickerAdapter();
+const notificationService: INotificationService = new ExpoNotificationAdapter();
 
 const syncQueue = new SyncQueue();
 
@@ -94,6 +100,16 @@ const savePetUseCase = new SavePetUseCase(petRepository);
 const startWalkUseCase = new StartWalkUseCase(walkRepository);
 const endWalkUseCase = new EndWalkUseCase(walkRepository);
 const getActiveWalkUseCase = new GetActiveWalkUseCase(walkRepository);
+const checkIntestinalHealthAlertUseCase = new CheckIntestinalHealthAlertUseCase(
+  droppingRepository,
+  notificationService,
+);
+const scheduleWalkReminderUseCase = new ScheduleWalkReminderUseCase(
+  notificationService,
+);
+const cancelWalkReminderUseCase = new CancelWalkReminderUseCase(
+  notificationService,
+);
 
 interface DependencyContextType {
   droppingRepository: IDroppingRepository;
@@ -103,9 +119,13 @@ interface DependencyContextType {
   startWalkUseCase: StartWalkUseCase;
   endWalkUseCase: EndWalkUseCase;
   getActiveWalkUseCase: GetActiveWalkUseCase;
+  checkIntestinalHealthAlertUseCase: CheckIntestinalHealthAlertUseCase;
+  scheduleWalkReminderUseCase: ScheduleWalkReminderUseCase;
+  cancelWalkReminderUseCase: CancelWalkReminderUseCase;
   authService: IAuthService;
   gpsService: IGpsService;
   imagePickerAdapter: IImagePickerService;
+  notificationService: INotificationService;
 }
 
 const DependencyContext = createContext<DependencyContextType | null>(null);
@@ -123,9 +143,13 @@ export const DependencyProvider: React.FC<{ children: React.ReactNode }> = ({
         startWalkUseCase,
         endWalkUseCase,
         getActiveWalkUseCase,
+        checkIntestinalHealthAlertUseCase,
+        scheduleWalkReminderUseCase,
+        cancelWalkReminderUseCase,
         authService,
         gpsService,
         imagePickerAdapter,
+        notificationService,
       }}
     >
       {children}

@@ -1,3 +1,4 @@
+import { describe, it, expect } from '@jest/globals';
 import { StartWalkUseCase } from '../../src/application/use-cases/StartWalkUseCase';
 import { IWalkRepository } from '../../src/domain/ports/IWalkRepository';
 import { Walk } from '../../src/domain/entities/Walk';

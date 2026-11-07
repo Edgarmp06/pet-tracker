@@ -25,8 +25,17 @@ export class MockAuthAdapter implements IAuthService {
     }
   }
 
-  async login(email: string): Promise<User> {
-    // Genera un usuario local simulado basado en el email
+  // El mock no comprueba contraseñas: sirve solo como sesión local simulada
+  // para desarrollo/pruebas sin backend. `password` se ignora a propósito.
+  async login(email: string, _password: string): Promise<User> {
+    return this.createSession(email);
+  }
+
+  async register(email: string, _password: string): Promise<User> {
+    return this.createSession(email);
+  }
+
+  private async createSession(email: string): Promise<User> {
     const user = new User({
       id: 'usr_' + Math.random().toString(36).substring(2, 7),
       email,

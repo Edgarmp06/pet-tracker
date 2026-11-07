@@ -11,13 +11,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { WalkScreen } from './src/presentation/screens/WalkScreen';
 import { ProfileScreen } from './src/presentation/screens/ProfileScreen';
 import { LoginScreen } from './src/presentation/screens/LoginScreen';
-import { DependencyProvider } from './src/presentation/context/DependencyContext';
+import { DependencyProvider, authService } from './src/presentation/context/DependencyContext';
 import { ActivePetProvider } from './src/presentation/context/ActivePetContext';
-import { MockAuthAdapter } from './src/infrastructure/adapters/MockAuthAdapter';
 import { User } from './src/domain/entities/User';
 
 const Tab = createBottomTabNavigator();
-const authService = new MockAuthAdapter();
 
 interface MainNavigatorProps {
   onLogout: () => void;

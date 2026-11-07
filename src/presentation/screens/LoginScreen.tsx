@@ -7,32 +7,56 @@ interface Props {
   onLoginSuccess: (user: User) => void;
 }
 
+type Mode = 'login' | 'register';
+
 export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
   const { authService } = useDependencies();
+  const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = async () => {
+  const handleSubmit = async () => {
     if (!email.trim() || !email.includes('@')) {
       Alert.alert('Email no válido', 'Por favor, introduce un correo electrónico correcto.');
       return;
     }
+    if (password.length < 6) {
+      Alert.alert(
+        'Contraseña demasiado corta',
+        'La contraseña debe tener al menos 6 caracteres.',
+      );
+      return;
+    }
 
+    setIsSubmitting(true);
     try {
-      const user = await authService.login(email);
+      const user =
+        mode === 'login'
+          ? await authService.login(email.trim(), password)
+          : await authService.register(email.trim(), password);
       onLoginSuccess(user);
     } catch (error) {
-      console.error('Fallo al iniciar sesión:', error);
+      console.error('Fallo de autenticación:', error);
       Alert.alert(
-        'No se pudo iniciar sesión',
-        'Ocurrió un problema al guardar tu sesión. Inténtalo de nuevo.',
+        mode === 'login' ? 'No se pudo iniciar sesión' : 'No se pudo crear la cuenta',
+        error instanceof Error
+          ? error.message
+          : 'Ocurrió un problema. Inténtalo de nuevo.',
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.logo}>🐾 PetTracker</Text>
-      <Text style={styles.subtitle}>Inicia sesión para gestionar tus mascotas</Text>
+      <Text style={styles.subtitle}>
+        {mode === 'login'
+          ? 'Inicia sesión para gestionar tus mascotas'
+          : 'Crea una cuenta para empezar'}
+      </Text>
 
       <TextInput
         style={styles.input}
@@ -43,8 +67,38 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
         autoCapitalize="none"
       />
 
-      <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-        <Text style={styles.loginBtnText}>Entrar / Registrarse</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Contraseña (mín. 6 caracteres)"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+        autoCapitalize="none"
+      />
+
+      <TouchableOpacity
+        style={[styles.loginBtn, isSubmitting && styles.loginBtnDisabled]}
+        onPress={handleSubmit}
+        disabled={isSubmitting}
+      >
+        <Text style={styles.loginBtnText}>
+          {isSubmitting
+            ? 'Un momento...'
+            : mode === 'login'
+              ? 'Entrar'
+              : 'Crear cuenta'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.switchModeBtn}
+        onPress={() => setMode(mode === 'login' ? 'register' : 'login')}
+      >
+        <Text style={styles.switchModeText}>
+          {mode === 'login'
+            ? '¿No tienes cuenta? Crea una'
+            : '¿Ya tienes cuenta? Inicia sesión'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -89,9 +143,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 2,
   },
+  loginBtnDisabled: {
+    opacity: 0.6,
+  },
   loginBtnText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  switchModeBtn: {
+    marginTop: 18,
+  },
+  switchModeText: {
+    color: '#4CAF50',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

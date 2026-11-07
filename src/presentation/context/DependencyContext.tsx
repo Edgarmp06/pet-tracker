@@ -5,12 +5,16 @@ import { AsyncStorageWalkRepository } from '../../infrastructure/adapters/AsyncS
 import { MockAuthAdapter } from '../../infrastructure/adapters/MockAuthAdapter';
 import { SupabaseAuthAdapter } from '../../infrastructure/adapters/SupabaseAuthAdapter';
 import { SupabasePetRepository } from '../../infrastructure/adapters/SupabasePetRepository';
+import { SupabaseDroppingRepository } from '../../infrastructure/adapters/SupabaseDroppingRepository';
+import { SupabaseWalkRepository } from '../../infrastructure/adapters/SupabaseWalkRepository';
 import { ExpoGpsAdapter } from '../../infrastructure/adapters/ExpoGpsAdapter';
 import { ExpoImagePickerAdapter } from '../../infrastructure/adapters/ExpoImagePickerAdapter';
 import { isSupabaseConfigured } from '../../infrastructure/config/supabaseClient';
 import { SyncQueue } from '../../infrastructure/sync/SyncQueue';
 import { SyncManager } from '../../infrastructure/sync/SyncManager';
 import { SyncedPetRepository } from '../../infrastructure/sync/SyncedPetRepository';
+import { SyncedDroppingRepository } from '../../infrastructure/sync/SyncedDroppingRepository';
+import { SyncedWalkRepository } from '../../infrastructure/sync/SyncedWalkRepository';
 import { RecordDroppingUseCase } from '../../application/use-cases/RecordDroppingUseCase';
 import {
   GetPetsUseCase,
@@ -21,12 +25,14 @@ import { EndWalkUseCase } from '../../application/use-cases/EndWalkUseCase';
 import { GetActiveWalkUseCase } from '../../application/use-cases/GetActiveWalkUseCase';
 import { IAuthService } from '../../domain/ports/IAuthService';
 import { IPetRepository } from '../../domain/ports/IPetRepository';
+import { IDroppingRepository } from '../../domain/ports/IDroppingRepository';
+import { IWalkRepository } from '../../domain/ports/IWalkRepository';
 import { IGpsService } from '../../domain/ports/IGpsService';
 import { IImagePickerService } from '../../domain/ports/IImagePickerService';
 
-const droppingRepository = new AsyncStorageDroppingRepository();
 const localPetRepository = new AsyncStoragePetRepository();
-const walkRepository = new AsyncStorageWalkRepository();
+const localDroppingRepository = new AsyncStorageDroppingRepository();
+const localWalkRepository = new AsyncStorageWalkRepository();
 const gpsService = new ExpoGpsAdapter();
 const imagePickerAdapter = new ExpoImagePickerAdapter();
 
@@ -38,6 +44,8 @@ const syncQueue = new SyncQueue();
 // configurados.
 let authService: IAuthService;
 let petRepository: IPetRepository;
+let droppingRepository: IDroppingRepository;
+let walkRepository: IWalkRepository;
 
 if (isSupabaseConfigured()) {
   authService = new SupabaseAuthAdapter();
@@ -49,15 +57,35 @@ if (isSupabaseConfigured()) {
     syncQueue,
   );
 
-  const syncManager = new SyncManager(syncQueue, { pet: remotePetRepository });
+  const remoteDroppingRepository = new SupabaseDroppingRepository();
+  droppingRepository = new SyncedDroppingRepository(
+    localDroppingRepository,
+    remoteDroppingRepository,
+    syncQueue,
+  );
+
+  const remoteWalkRepository = new SupabaseWalkRepository();
+  walkRepository = new SyncedWalkRepository(
+    localWalkRepository,
+    remoteWalkRepository,
+    syncQueue,
+  );
+
+  const syncManager = new SyncManager(syncQueue, {
+    pet: remotePetRepository,
+    dropping: remoteDroppingRepository,
+    walk: remoteWalkRepository,
+  });
   syncManager.start();
 } else {
   console.warn(
     'Supabase no está configurado (falta el .env): usando autenticación y ' +
-      'almacenamiento de mascotas solo locales. Ver .env.example.',
+      'almacenamiento solo locales. Ver .env.example.',
   );
   authService = new MockAuthAdapter();
   petRepository = localPetRepository;
+  droppingRepository = localDroppingRepository;
+  walkRepository = localWalkRepository;
 }
 
 const recordDroppingUseCase = new RecordDroppingUseCase(droppingRepository);
@@ -68,7 +96,7 @@ const endWalkUseCase = new EndWalkUseCase(walkRepository);
 const getActiveWalkUseCase = new GetActiveWalkUseCase(walkRepository);
 
 interface DependencyContextType {
-  droppingRepository: AsyncStorageDroppingRepository;
+  droppingRepository: IDroppingRepository;
   recordDroppingUseCase: RecordDroppingUseCase;
   getPetsUseCase: GetPetsUseCase;
   savePetUseCase: SavePetUseCase;

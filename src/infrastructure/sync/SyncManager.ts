@@ -1,11 +1,16 @@
 import NetInfo, { NetInfoSubscription } from '@react-native-community/netinfo';
 import { Pet, PetProps } from '../../domain/entities/Pet';
+import { Dropping, DroppingProps } from '../../domain/entities/Dropping';
+import { Walk, WalkProps } from '../../domain/entities/Walk';
 import { IPetRepository } from '../../domain/ports/IPetRepository';
+import { IDroppingRepository } from '../../domain/ports/IDroppingRepository';
+import { IWalkRepository } from '../../domain/ports/IWalkRepository';
 import { QueuedOperation, SyncQueue } from './SyncQueue';
 
 interface RemoteRepositories {
   pet?: IPetRepository;
-  // dropping/walk se añadirán cuando se replique el patrón a esas entidades.
+  dropping?: IDroppingRepository;
+  walk?: IWalkRepository;
 }
 
 /**
@@ -57,7 +62,15 @@ export class SyncManager {
     }
   }
 
-  /** Devuelve `true` si la operación se procesó (y por tanto puede salir de la cola). */
+  /**
+   * Devuelve `true` si la operación se procesó (y por tanto puede salir de
+   * la cola). Nota: `op.payload` viene de un ciclo JSON.stringify/parse por
+   * el paso por AsyncStorage, así que campos como `timestamp`/`startTime`
+   * llegan como strings ISO, no como `Date`, y `route`/`location` como
+   * objetos planos, no como `Location`. Los tres adaptadores Supabase*
+   * solo leen propiedades (nunca llaman a métodos de esas clases), así que
+   * reconstruir la entidad con el constructor es seguro tal cual.
+   */
   private async processOperation(op: QueuedOperation): Promise<boolean> {
     if (op.entity === 'pet' && this.remoteRepositories.pet) {
       if (op.type === 'upsert') {
@@ -67,8 +80,24 @@ export class SyncManager {
       return true;
     }
 
-    // Entidad todavía no migrada a sync (dropping/walk vendrán después):
-    // la dejamos en cola hasta que sí lo esté.
+    if (op.entity === 'dropping' && this.remoteRepositories.dropping) {
+      if (op.type === 'upsert') {
+        await this.remoteRepositories.dropping.save(
+          new Dropping(op.payload as DroppingProps),
+        );
+      }
+      return true;
+    }
+
+    if (op.entity === 'walk' && this.remoteRepositories.walk) {
+      if (op.type === 'upsert') {
+        await this.remoteRepositories.walk.save(new Walk(op.payload as WalkProps));
+      }
+      return true;
+    }
+
+    // Entidad todavía no migrada a sync, o repositorio remoto no inyectado
+    // (p.ej. Supabase no configurado): la dejamos en cola.
     return false;
   }
 }

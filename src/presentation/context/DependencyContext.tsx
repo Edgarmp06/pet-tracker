@@ -12,6 +12,7 @@ import {
 } from '../../application/use-cases/PetUseCases';
 import { StartWalkUseCase } from '../../application/use-cases/StartWalkUseCase';
 import { EndWalkUseCase } from '../../application/use-cases/EndWalkUseCase';
+import { GetActiveWalkUseCase } from '../../application/use-cases/GetActiveWalkUseCase';
 import { IAuthService } from '../../domain/ports/IAuthService';
 import { IGpsService } from '../../domain/ports/IGpsService';
 import { IImagePickerService } from '../../domain/ports/IImagePickerService';
@@ -28,6 +29,7 @@ const getPetsUseCase = new GetPetsUseCase(petRepository);
 const savePetUseCase = new SavePetUseCase(petRepository);
 const startWalkUseCase = new StartWalkUseCase(walkRepository);
 const endWalkUseCase = new EndWalkUseCase(walkRepository);
+const getActiveWalkUseCase = new GetActiveWalkUseCase(walkRepository);
 
 interface DependencyContextType {
   droppingRepository: AsyncStorageDroppingRepository;
@@ -36,6 +38,7 @@ interface DependencyContextType {
   savePetUseCase: SavePetUseCase;
   startWalkUseCase: StartWalkUseCase;
   endWalkUseCase: EndWalkUseCase;
+  getActiveWalkUseCase: GetActiveWalkUseCase;
   authService: IAuthService;
   gpsService: IGpsService;
   imagePickerAdapter: IImagePickerService;
@@ -55,6 +58,7 @@ export const DependencyProvider: React.FC<{ children: React.ReactNode }> = ({
         savePetUseCase,
         startWalkUseCase,
         endWalkUseCase,
+        getActiveWalkUseCase,
         authService,
         gpsService,
         imagePickerAdapter,

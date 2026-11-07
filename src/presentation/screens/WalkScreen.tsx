@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,14 +13,20 @@ import i18n from '../../infrastructure/i18n';
 import { MapViewComponent } from '../components/MapViewComponent';
 import { ColorGradientPicker } from '../components/ColorGradientPicker';
 import { Location } from '../../domain/value-objects/Location';
+import { Walk } from '../../domain/entities/Walk';
 import { useDependencies } from '../context/DependencyContext';
 import { useActivePet } from '../context/ActivePetContext';
 import { PoopConsistency } from '../../domain/entities/Dropping';
 
 export const WalkScreen = () => {
   const insets = useSafeAreaInsets();
-  const { recordDroppingUseCase, gpsService, startWalkUseCase, endWalkUseCase } =
-    useDependencies();
+  const {
+    recordDroppingUseCase,
+    gpsService,
+    startWalkUseCase,
+    endWalkUseCase,
+    getActiveWalkUseCase,
+  } = useDependencies();
   const {
     activePet,
     isLoading: isLoadingPet,
@@ -32,6 +38,9 @@ export const WalkScreen = () => {
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [route, setRoute] = useState<Location[]>([]);
   const [poopLocations, setPoopLocations] = useState<Location[]>([]);
+
+  // Evita repetir la comprobación de paseo huérfano para la misma mascota
+  const checkedOrphanForPetIdRef = useRef<string | null>(null);
 
   // Modal
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -56,6 +65,97 @@ export const WalkScreen = () => {
     }
     return () => clearInterval(interval);
   }, [isWalking, gpsService]);
+
+  // Detecta un paseo que quedó "activo" en el almacenamiento porque la app
+  // se cerró antes de llamar a handleEndWalk (p.ej. la mataron a mitad de
+  // un paseo). Solo se comprueba una vez por mascota y nunca si ya estamos
+  // paseando en esta misma sesión.
+  useEffect(() => {
+    if (isLoadingPet || !activePet || isWalking) return;
+    if (checkedOrphanForPetIdRef.current === activePet.id) return;
+    checkedOrphanForPetIdRef.current = activePet.id;
+
+    (async () => {
+      try {
+        const orphanWalk = await getActiveWalkUseCase.execute(activePet.id);
+        if (orphanWalk) {
+          handleOrphanWalk(orphanWalk);
+        }
+      } catch (error) {
+        console.error('Error al comprobar paseos sin finalizar:', error);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePet?.id, isLoadingPet, isWalking]);
+
+  const handleOrphanWalk = (walk: Walk) => {
+    // Bloqueamos el cambio de mascota de inmediato, antes de que el usuario
+    // decida qué hacer con el paseo huérfano.
+    setActiveWalkId(walk.id);
+    setWalkInProgress(true);
+
+    Alert.alert(
+      'Paseo sin finalizar',
+      `Se encontró un paseo de ${activePet?.name || 'tu mascota'} iniciado el ` +
+        `${walk.startTime.toLocaleDateString()} a las ${walk.startTime.toLocaleTimeString(
+          [],
+          { hour: '2-digit', minute: '2-digit' },
+        )} que no se cerró correctamente (la app se cerró a mitad del paseo). ` +
+        '¿Qué quieres hacer?',
+      [
+        {
+          text: 'Cerrar paseo',
+          style: 'destructive',
+          onPress: () => closeOrphanWalk(walk.id),
+        },
+        {
+          text: 'Continuar paseo',
+          onPress: () => resumeOrphanWalk(),
+        },
+      ],
+      { cancelable: false },
+    );
+  };
+
+  const resumeOrphanWalk = () => {
+    // No se pudo recuperar la ruta GPS previa (nunca se persiste hasta el
+    // final), así que continuamos registrando desde ahora mismo con el
+    // mismo walkId; la duración total seguirá contándose desde el inicio
+    // real del paseo.
+    setCurrentLocation(null);
+    setRoute([]);
+    setPoopLocations([]);
+    setIsWalking(true);
+  };
+
+  const closeOrphanWalk = async (walkId: string) => {
+    try {
+      const walk = await endWalkUseCase.execute({ walkId, route: [] });
+
+      setActiveWalkId(null);
+      setWalkInProgress(false);
+
+      const durationMin = walk.durationMs
+        ? Math.round(walk.durationMs / 60000)
+        : 0;
+
+      Alert.alert(
+        'Paseo cerrado',
+        `El paseo pendiente se cerró automáticamente (duración estimada: ${durationMin} min). ` +
+          'No se pudo recuperar la ruta GPS de ese paseo.',
+      );
+    } catch (error) {
+      console.error('Error al cerrar el paseo huérfano:', error);
+      // No lo dejamos bloqueado sin salida: lo tratamos como un paseo en
+      // curso para que el usuario pueda reintentar con el botón de
+      // "Finalizar Paseo" habitual.
+      resumeOrphanWalk();
+      Alert.alert(
+        'No se pudo cerrar el paseo',
+        'Ocurrió un problema al cerrar el paseo pendiente. Puedes intentar finalizarlo con el botón de abajo.',
+      );
+    }
+  };
 
   const handleStartWalk = async () => {
     try {

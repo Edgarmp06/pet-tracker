@@ -425,7 +425,13 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingTop: insets.top + 10 },
+      ]}
+    >
       {/* Selector de Mascotas (Carrusel horizontal) */}
       <Text style={styles.sectionHeader}>
         🐾 Mis Mascotas{isWalkInProgress ? ' (bloqueado durante el paseo)' : ''}
@@ -590,6 +596,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
         data={history}
         keyExtractor={(item) => item.id}
         style={styles.list}
+        scrollEnabled={false}
         renderItem={({ item }) => {
           const colorHex = item.color || '#6D4C41';
           const colorLabel = getColorLabel(item.color);
@@ -700,12 +707,13 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
           </View>
         </View>
       </Modal>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5', paddingHorizontal: 20 },
+  scrollContent: { flexGrow: 1, paddingBottom: 30 },
   sectionHeader: {
     fontSize: 14,
     fontWeight: 'bold',
@@ -832,7 +840,7 @@ const styles = StyleSheet.create({
     color: '#444',
     marginBottom: 10,
   },
-  list: { width: '100%', flex: 1 },
+  list: { width: '100%' },
   emptyState: {
     flex: 1,
     alignItems: 'center',

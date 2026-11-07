@@ -3,30 +3,25 @@ import {
   StyleSheet,
   Text,
   View,
+  Image,
   TouchableOpacity,
   Alert,
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from '../../infrastructure/i18n';
 import { MapViewComponent } from '../components/MapViewComponent';
 import { ColorGradientPicker } from '../components/ColorGradientPicker';
 import { Location } from '../../domain/value-objects/Location';
 import { useDependencies } from '../context/DependencyContext';
+import { useActivePet } from '../context/ActivePetContext';
 import { PoopConsistency } from '../../domain/entities/Dropping';
-
-const ACTIVE_PET_KEY = '@pet_tracker_active_pet_id';
 
 export const WalkScreen = () => {
   const insets = useSafeAreaInsets();
-  const {
-    recordDroppingUseCase,
-    getPetsUseCase,
-    savePetUseCase,
-    gpsService,
-    authService,
-  } = useDependencies();
+  const { recordDroppingUseCase, gpsService } = useDependencies();
+  const { activePet, isLoading: isLoadingPet, ensureActivePet } =
+    useActivePet();
   const [isWalking, setIsWalking] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [route, setRoute] = useState<Location[]>([]);
@@ -96,35 +91,11 @@ export const WalkScreen = () => {
       const locToUse =
         currentLocation || (await gpsService.getCurrentLocation());
 
-      // Obtener la mascota activa elegida por el usuario
-      let activePetId = await AsyncStorage.getItem(ACTIVE_PET_KEY);
-
-      if (!activePetId) {
-        // Si no hay id activa guardada, obtenemos la primera existente del usuario autenticado
-        const user = await authService.getCurrentUser();
-        if (!user) {
-          Alert.alert(
-            'Sesión no iniciada',
-            'Debes iniciar sesión para registrar una deposición.',
-          );
-          return;
-        }
-
-        const pets = await getPetsUseCase.execute(user.id);
-        if (pets.length > 0) {
-          activePetId = pets[0].id;
-        } else {
-          const defaultPet = await savePetUseCase.execute({
-            userId: user.id,
-            name: 'Max',
-          });
-          activePetId = defaultPet.id;
-        }
-        await AsyncStorage.setItem(ACTIVE_PET_KEY, activePetId);
-      }
+      // La mascota activa es la misma que se gestiona en el Perfil
+      const pet = await ensureActivePet();
 
       await recordDroppingUseCase.execute({
-        petId: activePetId,
+        petId: pet.id,
         latitude: locToUse?.latitude,
         longitude: locToUse?.longitude,
         consistency: selectedConsistency,
@@ -149,6 +120,24 @@ export const WalkScreen = () => {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
       <Text style={styles.title}>{i18n.t('welcome')}</Text>
+
+      <View style={styles.activePetBanner}>
+        {activePet?.avatarUri ? (
+          <Image
+            source={{ uri: activePet.avatarUri }}
+            style={styles.activePetAvatar}
+          />
+        ) : (
+          <Text style={styles.activePetEmoji}>🐶</Text>
+        )}
+        <Text style={styles.activePetText}>
+          {isLoadingPet
+            ? 'Cargando mascota activa...'
+            : activePet
+              ? `Paseando con ${activePet.name}`
+              : 'Sin mascota activa'}
+        </Text>
+      </View>
 
       <MapViewComponent
         currentLocation={currentLocation}
@@ -255,6 +244,19 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     color: '#333',
   },
+  activePetBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginBottom: 8,
+    elevation: 2,
+  },
+  activePetAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+  activePetEmoji: { fontSize: 18, marginRight: 8 },
+  activePetText: { fontSize: 13, fontWeight: '600', color: '#333' },
   button: {
     paddingVertical: 14,
     paddingHorizontal: 30,

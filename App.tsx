@@ -12,6 +12,7 @@ import { WalkScreen } from './src/presentation/screens/WalkScreen';
 import { ProfileScreen } from './src/presentation/screens/ProfileScreen';
 import { LoginScreen } from './src/presentation/screens/LoginScreen';
 import { DependencyProvider } from './src/presentation/context/DependencyContext';
+import { ActivePetProvider } from './src/presentation/context/ActivePetContext';
 import { MockAuthAdapter } from './src/infrastructure/adapters/MockAuthAdapter';
 import { User } from './src/domain/entities/User';
 
@@ -104,7 +105,9 @@ export default function App() {
         {!currentUser ? (
           <LoginScreen onLoginSuccess={(user) => setCurrentUser(user)} />
         ) : (
-          <MainNavigator onLogout={() => setCurrentUser(null)} />
+          <ActivePetProvider>
+            <MainNavigator onLogout={() => setCurrentUser(null)} />
+          </ActivePetProvider>
         )}
       </DependencyProvider>
     </SafeAreaProvider>

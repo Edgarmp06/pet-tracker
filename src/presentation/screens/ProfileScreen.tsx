@@ -11,15 +11,14 @@ import {
   TextInput,
   ScrollView,
   Share,
+  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDependencies } from '../context/DependencyContext';
+import { useActivePet } from '../context/ActivePetContext';
 import { Dropping, PoopConsistency } from '../../domain/entities/Dropping';
 import { Pet } from '../../domain/entities/Pet';
-
-const ACTIVE_PET_KEY = '@pet_tracker_active_pet_id';
 
 interface Props {
   onLogout?: () => void;
@@ -27,17 +26,18 @@ interface Props {
 
 export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   const insets = useSafeAreaInsets();
+  const { droppingRepository, savePetUseCase, authService, imagePickerAdapter } =
+    useDependencies();
   const {
-    droppingRepository,
-    getPetsUseCase,
-    savePetUseCase,
-    authService,
-    imagePickerAdapter,
-  } = useDependencies();
+    pets,
+    activePet: selectedPet,
+    isLoading: isLoadingPets,
+    selectPet,
+    refreshPets,
+  } = useActivePet();
 
-  const [pets, setPets] = useState<Pet[]>([]);
-  const [selectedPet, setSelectedPet] = useState<Pet | null>(null);
   const [history, setHistory] = useState<Dropping[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
   // Estado del modal para crear mascota
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -46,59 +46,38 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   const [newPetAge, setNewPetAge] = useState('');
   const [newPetAvatar, setNewPetAvatar] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadHistory = async (petId: string) => {
+    setIsLoadingHistory(true);
     try {
-      const user = await authService.getCurrentUser();
-      if (!user) return;
-
-      let userPets = await getPetsUseCase.execute(user.id);
-
-      // Si el usuario no tiene ninguna mascota guardada, creamos una por defecto (Max)
-      if (userPets.length === 0) {
-        const defaultPet = await savePetUseCase.execute({
-          userId: user.id,
-          name: 'Max',
-          breed: 'Perro',
-          age: 3,
-        });
-        userPets = [defaultPet];
-      }
-
-      setPets(userPets);
-
-      // Cargar la última mascota activa guardada en almacenamiento local
-      const savedActiveId = await AsyncStorage.getItem(ACTIVE_PET_KEY);
-      const active =
-        userPets.find((p) => p.id === savedActiveId) || userPets[0];
-      setSelectedPet(active);
-
-      if (active) {
-        const droppings = await droppingRepository.findByPetId(active.id);
-        setHistory(droppings.reverse());
-      } else {
-        setHistory([]);
-      }
+      const droppings = await droppingRepository.findByPetId(petId);
+      setHistory(droppings.reverse());
     } catch (error) {
-      console.error('Error al cargar los datos del perfil:', error);
+      console.error('Error al cargar el historial clínico:', error);
       Alert.alert(
-        'No se pudieron cargar los datos',
+        'No se pudo cargar el historial',
         'Ocurrió un problema al leer la información guardada. Inténtalo de nuevo.',
       );
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
   useFocusEffect(
     React.useCallback(() => {
-      loadData();
-    }, []),
+      if (selectedPet) {
+        loadHistory(selectedPet.id);
+      } else {
+        setHistory([]);
+        setIsLoadingHistory(false);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedPet?.id]),
   );
 
   const handleSelectPet = async (pet: Pet) => {
     try {
-      setSelectedPet(pet);
-      await AsyncStorage.setItem(ACTIVE_PET_KEY, pet.id);
-      const droppings = await droppingRepository.findByPetId(pet.id);
-      setHistory(droppings.reverse());
+      await selectPet(pet);
+      await loadHistory(pet.id);
     } catch (error) {
       console.error('Error al cambiar de mascota activa:', error);
       Alert.alert(
@@ -161,7 +140,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
       setNewPetAge('');
       setNewPetAvatar(null);
 
-      await loadData();
+      await refreshPets();
       await handleSelectPet(newPet);
     } catch (error) {
       console.error('Error al crear la mascota:', error);
@@ -456,6 +435,20 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
         📋 Historial Clínico de {selectedPet?.name || ''} ({history.length})
       </Text>
 
+      {isLoadingPets || isLoadingHistory ? (
+        <View style={styles.emptyState}>
+          <ActivityIndicator size="small" color="#4CAF50" />
+          <Text style={styles.emptyStateText}>Cargando historial...</Text>
+        </View>
+      ) : history.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateEmoji}>🐾</Text>
+          <Text style={styles.emptyStateText}>
+            Aún no hay deposiciones registradas
+            {selectedPet ? ` para ${selectedPet.name}` : ''}.
+          </Text>
+        </View>
+      ) : (
       <FlatList
         data={history}
         keyExtractor={(item) => item.id}
@@ -496,6 +489,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
           );
         }}
       />
+      )}
 
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutText}>🚪 Cerrar Sesión</Text>
@@ -670,6 +664,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   list: { width: '100%', flex: 1 },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateEmoji: { fontSize: 36, marginBottom: 8 },
+  emptyStateText: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 8,
+    textAlign: 'center',
+  },
   historyItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDependencies } from '../context/DependencyContext';
-import { Dropping } from '../../domain/entities/Dropping';
+import { Dropping, PoopConsistency } from '../../domain/entities/Dropping';
 import { Pet } from '../../domain/entities/Pet';
 import { MockAuthAdapter } from '../../infrastructure/adapters/MockAuthAdapter';
 
@@ -214,6 +214,37 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
     return closestName;
   };
 
+  const weeklyStats = useMemo(() => {
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const counts: Record<PoopConsistency, number> = {
+      normal: 0,
+      soft: 0,
+      hard: 0,
+      diarrhea: 0,
+    };
+    let total = 0;
+
+    for (const dropping of history) {
+      if (new Date(dropping.timestamp).getTime() >= sevenDaysAgo) {
+        total += 1;
+        counts[dropping.consistency || 'normal'] += 1;
+      }
+    }
+
+    return { total, counts };
+  }, [history]);
+
+  const CONSISTENCY_BADGES: {
+    key: PoopConsistency;
+    label: string;
+    emoji: string;
+  }[] = [
+    { key: 'normal', label: 'Normal', emoji: '👍' },
+    { key: 'soft', label: 'Blanda', emoji: '🍦' },
+    { key: 'hard', label: 'Dura', emoji: '🪨' },
+    { key: 'diarrhea', label: 'Diarrea', emoji: '🌊' },
+  ];
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
       {/* Selector de Mascotas (Carrusel horizontal) */}
@@ -275,6 +306,29 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
               {selectedPet.breed || 'Sin raza definida'} ·{' '}
               {selectedPet.age ? `${selectedPet.age} años` : 'Edad no descrita'}
             </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Dashboard de Salud Semanal */}
+      {selectedPet && (
+        <View style={styles.statsCard}>
+          <Text style={styles.statsTitle}>
+            📊 Resumen de los últimos 7 días
+          </Text>
+          <Text style={styles.statsTotal}>
+            {weeklyStats.total} deposición(es) esta semana
+          </Text>
+          <View style={styles.statsRow}>
+            {CONSISTENCY_BADGES.map((badge) => (
+              <View key={badge.key} style={styles.statBadge}>
+                <Text style={styles.statBadgeEmoji}>{badge.emoji}</Text>
+                <Text style={styles.statBadgeCount}>
+                  {weeklyStats.counts[badge.key]}
+                </Text>
+                <Text style={styles.statBadgeLabel}>{badge.label}</Text>
+              </View>
+            ))}
           </View>
         </View>
       )}
@@ -445,6 +499,44 @@ const styles = StyleSheet.create({
   profileInfo: { justifyContent: 'center' },
   petName: { fontSize: 20, fontWeight: 'bold', color: '#333' },
   petSubText: { fontSize: 14, color: '#666' },
+  statsCard: {
+    backgroundColor: '#ffffff',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 15,
+    elevation: 2,
+  },
+  statsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#444',
+    marginBottom: 4,
+  },
+  statsTotal: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 12,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statBadge: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginHorizontal: 4,
+  },
+  statBadgeEmoji: { fontSize: 20 },
+  statBadgeCount: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 2,
+  },
+  statBadgeLabel: { fontSize: 11, color: '#666', marginTop: 2 },
   historyTitle: {
     fontSize: 15,
     fontWeight: 'bold',

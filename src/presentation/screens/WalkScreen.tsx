@@ -7,16 +7,21 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import i18n from '../../infrastructure/i18n';
 import { MapViewComponent } from '../components/MapViewComponent';
 import { ColorGradientPicker } from '../components/ColorGradientPicker';
+import { HeatmapView } from '../components/HeatmapView';
 import { Location } from '../../domain/value-objects/Location';
 import { Walk } from '../../domain/entities/Walk';
+import { DroppingHeatPoint } from '../../application/use-cases/GetPetDroppingLocationsUseCase';
 import { useDependencies } from '../context/DependencyContext';
 import { useActivePet } from '../context/ActivePetContext';
 import { PoopConsistency } from '../../domain/entities/Dropping';
+
+type HeatmapRangeDays = 7 | 30;
 
 export const WalkScreen = () => {
   const insets = useSafeAreaInsets();
@@ -27,6 +32,7 @@ export const WalkScreen = () => {
     endWalkUseCase,
     getActiveWalkUseCase,
     checkIntestinalHealthAlertUseCase,
+    getPetDroppingLocationsUseCase,
   } = useDependencies();
   const {
     activePet,
@@ -48,6 +54,12 @@ export const WalkScreen = () => {
   const [selectedConsistency, setSelectedConsistency] =
     useState<PoopConsistency>('normal');
   const [selectedColorHex, setSelectedColorHex] = useState<string>('#6D4C41');
+
+  // Mapa de calor
+  const [isHeatmapVisible, setIsHeatmapVisible] = useState(false);
+  const [heatmapRangeDays, setHeatmapRangeDays] = useState<HeatmapRangeDays>(30);
+  const [heatmapPoints, setHeatmapPoints] = useState<DroppingHeatPoint[]>([]);
+  const [isLoadingHeatmap, setIsLoadingHeatmap] = useState(false);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -231,6 +243,33 @@ export const WalkScreen = () => {
     setIsModalVisible(true);
   };
 
+  const loadHeatmap = async (days: HeatmapRangeDays) => {
+    setIsLoadingHeatmap(true);
+    try {
+      const pet = await ensureActivePet();
+      const points = await getPetDroppingLocationsUseCase.execute(pet.id, days);
+      setHeatmapPoints(points);
+    } catch (error) {
+      console.error('Error al cargar el mapa de calor:', error);
+      Alert.alert(
+        'No se pudo cargar el mapa de calor',
+        'Ocurrió un problema al leer las ubicaciones registradas. Inténtalo de nuevo.',
+      );
+    } finally {
+      setIsLoadingHeatmap(false);
+    }
+  };
+
+  const handleOpenHeatmap = () => {
+    setIsHeatmapVisible(true);
+    loadHeatmap(heatmapRangeDays);
+  };
+
+  const handleChangeHeatmapRange = (days: HeatmapRangeDays) => {
+    setHeatmapRangeDays(days);
+    loadHeatmap(days);
+  };
+
   const handleSavePoop = async () => {
     try {
       const locToUse =
@@ -298,6 +337,10 @@ export const WalkScreen = () => {
         route={route}
         poopLocations={poopLocations}
       />
+
+      <TouchableOpacity style={styles.heatmapBtn} onPress={handleOpenHeatmap}>
+        <Text style={styles.heatmapBtnText}>🔥 Mapa de calor</Text>
+      </TouchableOpacity>
 
       {!isWalking ? (
         <TouchableOpacity
@@ -380,6 +423,61 @@ export const WalkScreen = () => {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={isHeatmapVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsHeatmapVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              🔥 Mapa de calor de deposiciones
+            </Text>
+
+            <View style={styles.optionsRow}>
+              {([7, 30] as HeatmapRangeDays[]).map((days) => (
+                <TouchableOpacity
+                  key={days}
+                  style={[
+                    styles.chip,
+                    heatmapRangeDays === days && styles.chipSelected,
+                  ]}
+                  onPress={() => handleChangeHeatmapRange(days)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      heatmapRangeDays === days && styles.chipTextSelected,
+                    ]}
+                  >
+                    Últimos {days} días
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {isLoadingHeatmap ? (
+              <View style={styles.heatmapLoading}>
+                <ActivityIndicator size="small" color="#4CAF50" />
+                <Text style={styles.heatmapLoadingText}>Cargando...</Text>
+              </View>
+            ) : (
+              <HeatmapView points={heatmapPoints} />
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={() => setIsHeatmapVisible(false)}
+              >
+                <Text style={styles.saveText}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -430,6 +528,22 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   poopText: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold' },
+  heatmapBtn: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#F44336',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 4,
+  },
+  heatmapBtnText: { color: '#F44336', fontWeight: 'bold', fontSize: 13 },
+  heatmapLoading: {
+    height: 320,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heatmapLoadingText: { marginTop: 8, fontSize: 13, color: '#666' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

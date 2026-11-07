@@ -27,6 +27,7 @@ import { GetActiveWalkUseCase } from '../../application/use-cases/GetActiveWalkU
 import { CheckIntestinalHealthAlertUseCase } from '../../application/use-cases/CheckIntestinalHealthAlertUseCase';
 import { ScheduleWalkReminderUseCase } from '../../application/use-cases/ScheduleWalkReminderUseCase';
 import { CancelWalkReminderUseCase } from '../../application/use-cases/CancelWalkReminderUseCase';
+import { GetPetDroppingLocationsUseCase } from '../../application/use-cases/GetPetDroppingLocationsUseCase';
 import { IAuthService } from '../../domain/ports/IAuthService';
 import { IPetRepository } from '../../domain/ports/IPetRepository';
 import { IDroppingRepository } from '../../domain/ports/IDroppingRepository';
@@ -110,6 +111,9 @@ const scheduleWalkReminderUseCase = new ScheduleWalkReminderUseCase(
 const cancelWalkReminderUseCase = new CancelWalkReminderUseCase(
   notificationService,
 );
+const getPetDroppingLocationsUseCase = new GetPetDroppingLocationsUseCase(
+  droppingRepository,
+);
 
 interface DependencyContextType {
   droppingRepository: IDroppingRepository;
@@ -122,6 +126,7 @@ interface DependencyContextType {
   checkIntestinalHealthAlertUseCase: CheckIntestinalHealthAlertUseCase;
   scheduleWalkReminderUseCase: ScheduleWalkReminderUseCase;
   cancelWalkReminderUseCase: CancelWalkReminderUseCase;
+  getPetDroppingLocationsUseCase: GetPetDroppingLocationsUseCase;
   authService: IAuthService;
   gpsService: IGpsService;
   imagePickerAdapter: IImagePickerService;
@@ -146,6 +151,7 @@ export const DependencyProvider: React.FC<{ children: React.ReactNode }> = ({
         checkIntestinalHealthAlertUseCase,
         scheduleWalkReminderUseCase,
         cancelWalkReminderUseCase,
+        getPetDroppingLocationsUseCase,
         authService,
         gpsService,
         imagePickerAdapter,

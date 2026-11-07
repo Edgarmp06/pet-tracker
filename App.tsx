@@ -76,10 +76,18 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    authService.getCurrentUser().then((user) => {
-      setCurrentUser(user);
-      setLoading(false);
-    });
+    authService
+      .getCurrentUser()
+      .then((user) => {
+        setCurrentUser(user);
+      })
+      .catch((error) => {
+        console.error('No se pudo recuperar la sesión al iniciar:', error);
+        setCurrentUser(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   if (loading) {

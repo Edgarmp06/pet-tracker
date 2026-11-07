@@ -5,19 +5,35 @@ import { Pet } from '../../domain/entities/Pet';
 const PETS_KEY = '@pet_tracker_pets';
 
 export class AsyncStoragePetRepository implements IPetRepository {
-  async findByUserId(userId: string): Promise<Pet[]> {
-    const json = await AsyncStorage.getItem(PETS_KEY);
+  private async readAll(): Promise<any[]> {
+    let json: string | null;
+    try {
+      json = await AsyncStorage.getItem(PETS_KEY);
+    } catch (error) {
+      console.error('No se pudo leer la lista de mascotas:', error);
+      throw new Error('No se pudo acceder al almacenamiento local.');
+    }
+
     if (!json) return [];
-    const rawData = JSON.parse(json);
-    return rawData
+
+    try {
+      return JSON.parse(json);
+    } catch (error) {
+      console.error('Lista de mascotas corrupta, se ignora:', error);
+      return [];
+    }
+  }
+
+  async findByUserId(userId: string): Promise<Pet[]> {
+    const all = await this.readAll();
+    return all
       .filter((item: any) => item.userId === userId)
       .map((item: any) => new Pet(item));
   }
 
   async save(pet: Pet): Promise<void> {
-    const json = await AsyncStorage.getItem(PETS_KEY);
-    const existing: any[] = json ? JSON.parse(json) : [];
-    const index = existing.findIndex(p => p.id === pet.id);
+    const existing = await this.readAll();
+    const index = existing.findIndex((p) => p.id === pet.id);
 
     if (index >= 0) {
       existing[index] = pet;
@@ -25,6 +41,11 @@ export class AsyncStoragePetRepository implements IPetRepository {
       existing.push(pet);
     }
 
-    await AsyncStorage.setItem(PETS_KEY, JSON.stringify(existing));
+    try {
+      await AsyncStorage.setItem(PETS_KEY, JSON.stringify(existing));
+    } catch (error) {
+      console.error('No se pudo guardar la mascota:', error);
+      throw new Error('No se pudo guardar la mascota en el almacenamiento local.');
+    }
   }
 }

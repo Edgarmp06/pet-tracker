@@ -1,8 +1,10 @@
 import * as ImagePicker from 'expo-image-picker';
+import { IImagePickerService } from '../../domain/ports/IImagePickerService';
 
-export class ExpoImagePickerAdapter {
-  static async pickImageFromGallery(): Promise<string | null> {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+export class ExpoImagePickerAdapter implements IImagePickerService {
+  async pickImageFromGallery(): Promise<string | null> {
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
       return null;
     }
@@ -20,8 +22,9 @@ export class ExpoImagePickerAdapter {
     return null;
   }
 
-  static async takePhotoWithCamera(): Promise<string | null> {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+  async takePhotoWithCamera(): Promise<string | null> {
+    const permissionResult =
+      await ImagePicker.requestCameraPermissionsAsync();
     if (!permissionResult.granted) {
       return null;
     }

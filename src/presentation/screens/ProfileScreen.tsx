@@ -14,14 +14,11 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDependencies } from '../context/DependencyContext';
 import { Dropping, PoopConsistency } from '../../domain/entities/Dropping';
 import { Pet } from '../../domain/entities/Pet';
-import { MockAuthAdapter } from '../../infrastructure/adapters/MockAuthAdapter';
 
-const authService = new MockAuthAdapter();
 const ACTIVE_PET_KEY = '@pet_tracker_active_pet_id';
 
 interface Props {
@@ -30,8 +27,13 @@ interface Props {
 
 export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   const insets = useSafeAreaInsets();
-  const { droppingRepository, getPetsUseCase, savePetUseCase } =
-    useDependencies();
+  const {
+    droppingRepository,
+    getPetsUseCase,
+    savePetUseCase,
+    authService,
+    imagePickerAdapter,
+  } = useDependencies();
 
   const [pets, setPets] = useState<Pet[]>([]);
   const [selectedPet, setSelectedPet] = useState<Pet | null>(null);
@@ -45,32 +47,43 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   const [newPetAvatar, setNewPetAvatar] = useState<string | null>(null);
 
   const loadData = async () => {
-    const user = await authService.getCurrentUser();
-    if (!user) return;
+    try {
+      const user = await authService.getCurrentUser();
+      if (!user) return;
 
-    let userPets = await getPetsUseCase.execute(user.id);
+      let userPets = await getPetsUseCase.execute(user.id);
 
-    // Si el usuario no tiene ninguna mascota guardada, creamos una por defecto (Max)
-    if (userPets.length === 0) {
-      const defaultPet = await savePetUseCase.execute({
-        userId: user.id,
-        name: 'Max',
-        breed: 'Perro',
-        age: 3,
-      });
-      userPets = [defaultPet];
-    }
+      // Si el usuario no tiene ninguna mascota guardada, creamos una por defecto (Max)
+      if (userPets.length === 0) {
+        const defaultPet = await savePetUseCase.execute({
+          userId: user.id,
+          name: 'Max',
+          breed: 'Perro',
+          age: 3,
+        });
+        userPets = [defaultPet];
+      }
 
-    setPets(userPets);
+      setPets(userPets);
 
-    // Cargar la última mascota activa guardada en almacenamiento local
-    const savedActiveId = await AsyncStorage.getItem(ACTIVE_PET_KEY);
-    const active = userPets.find((p) => p.id === savedActiveId) || userPets[0];
-    setSelectedPet(active);
+      // Cargar la última mascota activa guardada en almacenamiento local
+      const savedActiveId = await AsyncStorage.getItem(ACTIVE_PET_KEY);
+      const active =
+        userPets.find((p) => p.id === savedActiveId) || userPets[0];
+      setSelectedPet(active);
 
-    if (active) {
-      const droppings = await droppingRepository.findByPetId(active.id);
-      setHistory(droppings.reverse());
+      if (active) {
+        const droppings = await droppingRepository.findByPetId(active.id);
+        setHistory(droppings.reverse());
+      } else {
+        setHistory([]);
+      }
+    } catch (error) {
+      console.error('Error al cargar los datos del perfil:', error);
+      Alert.alert(
+        'No se pudieron cargar los datos',
+        'Ocurrió un problema al leer la información guardada. Inténtalo de nuevo.',
+      );
     }
   };
 
@@ -81,31 +94,37 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   );
 
   const handleSelectPet = async (pet: Pet) => {
-    setSelectedPet(pet);
-    await AsyncStorage.setItem(ACTIVE_PET_KEY, pet.id);
-    const droppings = await droppingRepository.findByPetId(pet.id);
-    setHistory(droppings.reverse());
+    try {
+      setSelectedPet(pet);
+      await AsyncStorage.setItem(ACTIVE_PET_KEY, pet.id);
+      const droppings = await droppingRepository.findByPetId(pet.id);
+      setHistory(droppings.reverse());
+    } catch (error) {
+      console.error('Error al cambiar de mascota activa:', error);
+      Alert.alert(
+        'No se pudo cambiar de mascota',
+        'Ocurrió un problema al guardar la mascota activa. Inténtalo de nuevo.',
+      );
+    }
   };
 
   const handlePickModalAvatar = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
+    try {
+      const uri = await imagePickerAdapter.pickImageFromGallery();
+      if (uri) {
+        setNewPetAvatar(uri);
+      } else {
+        Alert.alert(
+          'Permiso denegado',
+          'Necesitamos permiso para acceder a tus fotos.',
+        );
+      }
+    } catch (error) {
+      console.error('Error al seleccionar la foto:', error);
       Alert.alert(
-        'Permiso denegado',
-        'Necesitamos permiso para acceder a tus fotos.',
+        'No se pudo seleccionar la foto',
+        'Ocurrió un problema al abrir la galería. Inténtalo de nuevo.',
       );
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets.length > 0) {
-      setNewPetAvatar(result.assets[0].uri);
     }
   };
 
@@ -118,25 +137,39 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
       return;
     }
 
-    const user = await authService.getCurrentUser();
-    if (!user) return;
+    try {
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        Alert.alert(
+          'Sesión no iniciada',
+          'Debes iniciar sesión para crear una mascota.',
+        );
+        return;
+      }
 
-    const newPet = await savePetUseCase.execute({
-      userId: user.id,
-      name: newPetName.trim(),
-      breed: newPetBreed.trim() || undefined,
-      age: newPetAge ? parseInt(newPetAge, 10) : undefined,
-      avatarUri: newPetAvatar || undefined,
-    });
+      const newPet = await savePetUseCase.execute({
+        userId: user.id,
+        name: newPetName.trim(),
+        breed: newPetBreed.trim() || undefined,
+        age: newPetAge ? parseInt(newPetAge, 10) : undefined,
+        avatarUri: newPetAvatar || undefined,
+      });
 
-    setIsModalVisible(false);
-    setNewPetName('');
-    setNewPetBreed('');
-    setNewPetAge('');
-    setNewPetAvatar(null);
+      setIsModalVisible(false);
+      setNewPetName('');
+      setNewPetBreed('');
+      setNewPetAge('');
+      setNewPetAvatar(null);
 
-    await loadData();
-    handleSelectPet(newPet);
+      await loadData();
+      await handleSelectPet(newPet);
+    } catch (error) {
+      console.error('Error al crear la mascota:', error);
+      Alert.alert(
+        'No se pudo crear la mascota',
+        'Ocurrió un problema al guardar la mascota. Inténtalo de nuevo.',
+      );
+    }
   };
 
   const handleLogout = async () => {
@@ -146,8 +179,16 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
         text: 'Salir',
         style: 'destructive',
         onPress: async () => {
-          await authService.logout();
-          if (onLogout) onLogout();
+          try {
+            await authService.logout();
+            if (onLogout) onLogout();
+          } catch (error) {
+            console.error('Error al cerrar sesión:', error);
+            Alert.alert(
+              'No se pudo cerrar sesión',
+              'Ocurrió un problema. Inténtalo de nuevo.',
+            );
+          }
         },
       },
     ]);

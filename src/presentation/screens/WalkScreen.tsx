@@ -10,22 +10,23 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from '../../infrastructure/i18n';
-import { ExpoGpsAdapter } from '../../infrastructure/adapters/ExpoGpsAdapter';
 import { MapViewComponent } from '../components/MapViewComponent';
 import { ColorGradientPicker } from '../components/ColorGradientPicker';
 import { Location } from '../../domain/value-objects/Location';
 import { useDependencies } from '../context/DependencyContext';
 import { PoopConsistency } from '../../domain/entities/Dropping';
-import { MockAuthAdapter } from '../../infrastructure/adapters/MockAuthAdapter';
 
-const gpsService = new ExpoGpsAdapter();
-const authService = new MockAuthAdapter();
 const ACTIVE_PET_KEY = '@pet_tracker_active_pet_id';
 
 export const WalkScreen = () => {
   const insets = useSafeAreaInsets();
-  const { recordDroppingUseCase, getPetsUseCase, savePetUseCase } =
-    useDependencies();
+  const {
+    recordDroppingUseCase,
+    getPetsUseCase,
+    savePetUseCase,
+    gpsService,
+    authService,
+  } = useDependencies();
   const [isWalking, setIsWalking] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [route, setRoute] = useState<Location[]>([]);
@@ -41,29 +42,41 @@ export const WalkScreen = () => {
     let interval: ReturnType<typeof setInterval>;
     if (isWalking) {
       interval = setInterval(async () => {
-        const loc = await gpsService.getCurrentLocation();
-        if (loc) {
-          setCurrentLocation(loc);
-          setRoute((prev) => [...prev, loc]);
+        try {
+          const loc = await gpsService.getCurrentLocation();
+          if (loc) {
+            setCurrentLocation(loc);
+            setRoute((prev) => [...prev, loc]);
+          }
+        } catch (error) {
+          console.error('Error al actualizar la ubicación GPS:', error);
         }
       }, 3000);
     }
     return () => clearInterval(interval);
-  }, [isWalking]);
+  }, [isWalking, gpsService]);
 
   const handleStartWalk = async () => {
-    const hasPermission = await gpsService.requestPermissions();
-    if (!hasPermission) {
-      Alert.alert('Permiso denegado', 'Se requiere acceso al GPS.');
-      return;
+    try {
+      const hasPermission = await gpsService.requestPermissions();
+      if (!hasPermission) {
+        Alert.alert('Permiso denegado', 'Se requiere acceso al GPS.');
+        return;
+      }
+      const initialLoc = await gpsService.getCurrentLocation();
+      if (initialLoc) {
+        setCurrentLocation(initialLoc);
+        setRoute([initialLoc]);
+      }
+      setPoopLocations([]);
+      setIsWalking(true);
+    } catch (error) {
+      console.error('Error al iniciar el paseo:', error);
+      Alert.alert(
+        'No se pudo iniciar el paseo',
+        'Ocurrió un problema al acceder al GPS. Inténtalo de nuevo.',
+      );
     }
-    const initialLoc = await gpsService.getCurrentLocation();
-    if (initialLoc) {
-      setCurrentLocation(initialLoc);
-      setRoute([initialLoc]);
-    }
-    setPoopLocations([]);
-    setIsWalking(true);
   };
 
   const handleEndWalk = () => {
@@ -79,47 +92,58 @@ export const WalkScreen = () => {
   };
 
   const handleSavePoop = async () => {
-    setIsModalVisible(false);
+    try {
+      const locToUse =
+        currentLocation || (await gpsService.getCurrentLocation());
 
-    const locToUse = currentLocation || (await gpsService.getCurrentLocation());
+      // Obtener la mascota activa elegida por el usuario
+      let activePetId = await AsyncStorage.getItem(ACTIVE_PET_KEY);
 
-    // Obtener la mascota activa elegida por el usuario
-    let activePetId = await AsyncStorage.getItem(ACTIVE_PET_KEY);
+      if (!activePetId) {
+        // Si no hay id activa guardada, obtenemos la primera existente del usuario autenticado
+        const user = await authService.getCurrentUser();
+        if (!user) {
+          Alert.alert(
+            'Sesión no iniciada',
+            'Debes iniciar sesión para registrar una deposición.',
+          );
+          return;
+        }
 
-    if (!activePetId) {
-      // Si no hay id activa guardada, obtenemos la primera existente del usuario autenticado
-      const user = await authService.getCurrentUser();
-      if (!user) {
-        Alert.alert('Sesión no iniciada', 'Debes iniciar sesión para registrar una deposición.');
-        return;
+        const pets = await getPetsUseCase.execute(user.id);
+        if (pets.length > 0) {
+          activePetId = pets[0].id;
+        } else {
+          const defaultPet = await savePetUseCase.execute({
+            userId: user.id,
+            name: 'Max',
+          });
+          activePetId = defaultPet.id;
+        }
+        await AsyncStorage.setItem(ACTIVE_PET_KEY, activePetId);
       }
 
-      const pets = await getPetsUseCase.execute(user.id);
-      if (pets.length > 0) {
-        activePetId = pets[0].id;
-      } else {
-        const defaultPet = await savePetUseCase.execute({
-          userId: user.id,
-          name: 'Max',
-        });
-        activePetId = defaultPet.id;
+      await recordDroppingUseCase.execute({
+        petId: activePetId,
+        latitude: locToUse?.latitude,
+        longitude: locToUse?.longitude,
+        consistency: selectedConsistency,
+        color: selectedColorHex,
+      });
+
+      if (locToUse) {
+        setPoopLocations((prev) => [...prev, locToUse]);
       }
-      await AsyncStorage.setItem(ACTIVE_PET_KEY, activePetId);
+
+      setIsModalVisible(false);
+      Alert.alert('¡Registrado!', `💩 Deposición guardada con éxito.`);
+    } catch (error) {
+      console.error('Error al registrar la deposición:', error);
+      Alert.alert(
+        'No se pudo registrar',
+        'Ocurrió un problema al guardar la deposición. Inténtalo de nuevo.',
+      );
     }
-
-    await recordDroppingUseCase.execute({
-      petId: activePetId,
-      latitude: locToUse?.latitude,
-      longitude: locToUse?.longitude,
-      consistency: selectedConsistency,
-      color: selectedColorHex,
-    });
-
-    if (locToUse) {
-      setPoopLocations((prev) => [...prev, locToUse]);
-    }
-
-    Alert.alert('¡Registrado!', `💩 Deposición guardada con éxito.`);
   };
 
   return (

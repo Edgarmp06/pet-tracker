@@ -6,10 +6,23 @@ const USER_STORAGE_KEY = '@pet_tracker_current_user';
 
 export class MockAuthAdapter implements IAuthService {
   async getCurrentUser(): Promise<User | null> {
-    const json = await AsyncStorage.getItem(USER_STORAGE_KEY);
+    let json: string | null;
+    try {
+      json = await AsyncStorage.getItem(USER_STORAGE_KEY);
+    } catch (error) {
+      console.error('No se pudo leer la sesión guardada:', error);
+      return null;
+    }
+
     if (!json) return null;
-    const data = JSON.parse(json);
-    return new User(data);
+
+    try {
+      const data = JSON.parse(json);
+      return new User(data);
+    } catch (error) {
+      console.error('Sesión guardada corrupta, se ignora:', error);
+      return null;
+    }
   }
 
   async login(email: string): Promise<User> {
@@ -21,11 +34,22 @@ export class MockAuthAdapter implements IAuthService {
       isPro: false,
     });
 
-    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    try {
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    } catch (error) {
+      console.error('No se pudo guardar la sesión:', error);
+      throw new Error('No se pudo iniciar sesión. Inténtalo de nuevo.');
+    }
+
     return user;
   }
 
   async logout(): Promise<void> {
-    await AsyncStorage.removeItem(USER_STORAGE_KEY);
+    try {
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
+    } catch (error) {
+      console.error('No se pudo cerrar la sesión:', error);
+      throw new Error('No se pudo cerrar sesión. Inténtalo de nuevo.');
+    }
   }
 }

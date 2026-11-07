@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { MockAuthAdapter } from '../../infrastructure/adapters/MockAuthAdapter';
 import { User } from '../../domain/entities/User';
-
-const authService = new MockAuthAdapter();
+import { useDependencies } from '../context/DependencyContext';
 
 interface Props {
   onLoginSuccess: (user: User) => void;
 }
 
 export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
+  const { authService } = useDependencies();
   const [email, setEmail] = useState('');
 
   const handleLogin = async () => {
@@ -18,8 +17,16 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
       return;
     }
 
-    const user = await authService.login(email);
-    onLoginSuccess(user);
+    try {
+      const user = await authService.login(email);
+      onLoginSuccess(user);
+    } catch (error) {
+      console.error('Fallo al iniciar sesión:', error);
+      Alert.alert(
+        'No se pudo iniciar sesión',
+        'Ocurrió un problema al guardar tu sesión. Inténtalo de nuevo.',
+      );
+    }
   };
 
   return (

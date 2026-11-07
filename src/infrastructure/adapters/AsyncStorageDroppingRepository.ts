@@ -7,9 +7,22 @@ const STORAGE_KEY = '@pet_tracker_droppings';
 
 export class AsyncStorageDroppingRepository implements IDroppingRepository {
   private async readAll(): Promise<any[]> {
-    const json = await AsyncStorage.getItem(STORAGE_KEY);
+    let json: string | null;
+    try {
+      json = await AsyncStorage.getItem(STORAGE_KEY);
+    } catch (error) {
+      console.error('No se pudo leer el historial de deposiciones:', error);
+      throw new Error('No se pudo acceder al almacenamiento local.');
+    }
+
     if (!json) return [];
-    return JSON.parse(json);
+
+    try {
+      return JSON.parse(json);
+    } catch (error) {
+      console.error('Historial de deposiciones corrupto, se ignora:', error);
+      return [];
+    }
   }
 
   private toDropping(item: any): Dropping {
@@ -29,7 +42,13 @@ export class AsyncStorageDroppingRepository implements IDroppingRepository {
   async save(dropping: Dropping): Promise<void> {
     const all = await this.readAll();
     all.push(dropping);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    } catch (error) {
+      console.error('No se pudo guardar la deposición:', error);
+      throw new Error('No se pudo guardar la deposición en el almacenamiento local.');
+    }
   }
 
   async findByPetId(petId: string): Promise<Dropping[]> {

@@ -10,6 +10,7 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  Share,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -245,6 +246,73 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
     { key: 'diarrhea', label: 'Diarrea', emoji: '🌊' },
   ];
 
+  const handleShareVetReport = async () => {
+    if (!selectedPet) return;
+
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const recentHistory = history.filter(
+      (d) => new Date(d.timestamp).getTime() >= thirtyDaysAgo,
+    );
+
+    const counts: Record<PoopConsistency, number> = {
+      normal: 0,
+      soft: 0,
+      hard: 0,
+      diarrhea: 0,
+    };
+    recentHistory.forEach((d) => {
+      counts[d.consistency || 'normal'] += 1;
+    });
+
+    const anomalies = recentHistory.filter(
+      (d) => d.consistency === 'diarrhea' || d.consistency === 'hard',
+    );
+
+    const lines = [
+      `🐾 INFORME CLÍNICO - ${selectedPet.name}`,
+      `${selectedPet.breed || 'Sin raza definida'} · ${
+        selectedPet.age ? `${selectedPet.age} años` : 'Edad no descrita'
+      }`,
+      '',
+      `Periodo: últimos 30 días`,
+      `Total de deposiciones registradas: ${recentHistory.length}`,
+      '',
+      'Desglose por consistencia:',
+      `  👍 Normal: ${counts.normal}`,
+      `  🍦 Blanda: ${counts.soft}`,
+      `  🪨 Dura: ${counts.hard}`,
+      `  🌊 Diarrea: ${counts.diarrhea}`,
+      '',
+      `Registros anómalos (dura / diarrea): ${anomalies.length}`,
+    ];
+
+    if (anomalies.length > 0) {
+      anomalies.forEach((d) => {
+        lines.push(
+          `  - ${new Date(d.timestamp).toLocaleDateString()} ${new Date(
+            d.timestamp,
+          ).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}: ${formatConsistency(d.consistency)} · Color: ${getColorLabel(
+            d.color,
+          )}`,
+        );
+      });
+    }
+
+    lines.push('', 'Generado con PetTracker 🐶');
+
+    try {
+      await Share.share({
+        title: `Informe clínico de ${selectedPet.name}`,
+        message: lines.join('\n'),
+      });
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo compartir el informe.');
+    }
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
       {/* Selector de Mascotas (Carrusel horizontal) */}
@@ -330,6 +398,15 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
               </View>
             ))}
           </View>
+
+          <TouchableOpacity
+            style={styles.shareReportBtn}
+            onPress={handleShareVetReport}
+          >
+            <Text style={styles.shareReportText}>
+              📤 Compartir Informe Veterinario
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -537,6 +614,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statBadgeLabel: { fontSize: 11, color: '#666', marginTop: 2 },
+  shareReportBtn: {
+    backgroundColor: '#1976D2',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  shareReportText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   historyTitle: {
     fontSize: 15,
     fontWeight: 'bold',

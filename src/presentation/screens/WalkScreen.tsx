@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,19 +12,25 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import i18n from '../../infrastructure/i18n';
 import { MapViewComponent } from '../components/MapViewComponent';
-import { ColorGradientPicker } from '../components/ColorGradientPicker';
 import { HeatmapView } from '../components/HeatmapView';
+import {
+  DroppingFormModal,
+  DroppingFormValues,
+} from '../components/DroppingFormModal';
+import { PetSelectorModal } from '../components/PetSelectorModal';
 import { Location } from '../../domain/value-objects/Location';
 import { Walk } from '../../domain/entities/Walk';
+import { Pet } from '../../domain/entities/Pet';
 import { DroppingHeatPoint } from '../../application/use-cases/GetPetDroppingLocationsUseCase';
 import { useDependencies } from '../context/DependencyContext';
 import { useActivePet } from '../context/ActivePetContext';
-import { PoopConsistency } from '../../domain/entities/Dropping';
-
+import { ThemeColors, useTheme } from '../context/ThemeContext';
 type HeatmapRangeDays = 7 | 30;
 
 export const WalkScreen = () => {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     recordDroppingUseCase,
     gpsService,
@@ -35,6 +41,7 @@ export const WalkScreen = () => {
     getPetDroppingLocationsUseCase,
   } = useDependencies();
   const {
+    pets,
     activePet,
     isLoading: isLoadingPet,
     ensureActivePet,
@@ -46,14 +53,18 @@ export const WalkScreen = () => {
   const [route, setRoute] = useState<Location[]>([]);
   const [poopLocations, setPoopLocations] = useState<Location[]>([]);
 
+  // Mascotas que participan en el paseo actual (una o varias, paseo conjunto)
+  const [participatingPets, setParticipatingPets] = useState<Pet[]>([]);
+  const [isPetSelectorVisible, setIsPetSelectorVisible] = useState(false);
+  const [isWhoDidItVisible, setIsWhoDidItVisible] = useState(false);
+  const [pendingEventPet, setPendingEventPet] = useState<Pet | null>(null);
+
   // Evita repetir la comprobación de paseo huérfano para la misma mascota
   const checkedOrphanForPetIdRef = useRef<string | null>(null);
 
   // Modal
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [selectedConsistency, setSelectedConsistency] =
-    useState<PoopConsistency>('normal');
-  const [selectedColorHex, setSelectedColorHex] = useState<string>('#6D4C41');
+  const [isSavingPoop, setIsSavingPoop] = useState(false);
 
   // Mapa de calor
   const [isHeatmapVisible, setIsHeatmapVisible] = useState(false);
@@ -107,9 +118,19 @@ export const WalkScreen = () => {
     setActiveWalkId(walk.id);
     setWalkInProgress(true);
 
+    const orphanPets = pets.filter((pet) => walk.petIds.includes(pet.id));
+    setParticipatingPets(
+      orphanPets.length > 0 ? orphanPets : activePet ? [activePet] : [],
+    );
+
+    const petNames =
+      orphanPets.map((pet) => pet.name).join(' y ') ||
+      activePet?.name ||
+      'tu mascota';
+
     Alert.alert(
       'Paseo sin finalizar',
-      `Se encontró un paseo de ${activePet?.name || 'tu mascota'} iniciado el ` +
+      `Se encontró un paseo de ${petNames} iniciado el ` +
         `${walk.startTime.toLocaleDateString()} a las ${walk.startTime.toLocaleTimeString(
           [],
           { hour: '2-digit', minute: '2-digit' },
@@ -171,27 +192,58 @@ export const WalkScreen = () => {
   };
 
   const handleStartWalk = async () => {
-    try {
-      const pet = await ensureActivePet();
+    if (pets.length === 0) {
+      Alert.alert(
+        'Sin mascotas',
+        'Añade al menos una mascota desde tu perfil antes de iniciar un paseo.',
+      );
+      return;
+    }
 
+    if (pets.length === 1) {
+      await startWalkWithPets(pets);
+      return;
+    }
+
+    setIsPetSelectorVisible(true);
+  };
+
+  const startWalkWithPets = async (selectedPets: Pet[]) => {
+    if (selectedPets.length === 0) return;
+
+    try {
       const hasPermission = await gpsService.requestPermissions();
       if (!hasPermission) {
         Alert.alert('Permiso denegado', 'Se requiere acceso al GPS.');
         return;
       }
 
-      const walk = await startWalkUseCase.execute(pet.id);
+      const walk = await startWalkUseCase.execute(
+        selectedPets.map((pet) => pet.id),
+      );
 
-      const initialLoc = await gpsService.getCurrentLocation();
-      const initialRoute = initialLoc ? [initialLoc] : [];
-      if (initialLoc) {
-        setCurrentLocation(initialLoc);
-      }
-      setRoute(initialRoute);
+      // Marcamos el paseo como iniciado de inmediato: no esperamos a que
+      // llegue el primer fix de GPS (puede tardar varios segundos en frío y
+      // dejaría el botón "Iniciar Paseo" pareciendo congelado). La ubicación
+      // inicial llega en segundo plano y actualiza el mapa cuando esté lista.
+      setRoute([]);
+      setCurrentLocation(null);
       setPoopLocations([]);
+      setParticipatingPets(selectedPets);
       setActiveWalkId(walk.id);
       setWalkInProgress(true);
       setIsWalking(true);
+
+      gpsService
+        .getCurrentLocation()
+        .then((initialLoc) => {
+          if (!initialLoc) return;
+          setCurrentLocation(initialLoc);
+          setRoute((prev) => (prev.length === 0 ? [initialLoc] : prev));
+        })
+        .catch((error) =>
+          console.error('Error al obtener la ubicación inicial:', error),
+        );
     } catch (error) {
       console.error('Error al iniciar el paseo:', error);
       Alert.alert(
@@ -219,6 +271,7 @@ export const WalkScreen = () => {
       setIsWalking(false);
       setWalkInProgress(false);
       setActiveWalkId(null);
+      setParticipatingPets([]);
 
       const distanceKm = (walk.distanceMeters / 1000).toFixed(2);
       const durationMin = walk.durationMs
@@ -240,6 +293,18 @@ export const WalkScreen = () => {
   };
 
   const handleOpenPoopModal = () => {
+    if (participatingPets.length > 1) {
+      setIsWhoDidItVisible(true);
+      return;
+    }
+
+    setPendingEventPet(participatingPets[0] || activePet || null);
+    setIsModalVisible(true);
+  };
+
+  const handleWhoDidItConfirm = (selectedPets: Pet[]) => {
+    setIsWhoDidItVisible(false);
+    setPendingEventPet(selectedPets[0] || null);
     setIsModalVisible(true);
   };
 
@@ -270,21 +335,24 @@ export const WalkScreen = () => {
     loadHeatmap(days);
   };
 
-  const handleSavePoop = async () => {
+  const handleSavePoop = async (values: DroppingFormValues) => {
+    setIsSavingPoop(true);
     try {
       const locToUse =
         currentLocation || (await gpsService.getCurrentLocation());
 
-      // La mascota activa es la misma que se gestiona en el Perfil
-      const pet = await ensureActivePet();
+      // Durante un paseo conjunto, `pendingEventPet` es la mascota elegida
+      // en el selector "¿Quién lo hizo?"; fuera de eso, cae de vuelta a la
+      // mascota activa del Perfil.
+      const pet = pendingEventPet || (await ensureActivePet());
 
       await recordDroppingUseCase.execute({
         petId: pet.id,
         walkId: activeWalkId || undefined,
         latitude: locToUse?.latitude,
         longitude: locToUse?.longitude,
-        consistency: selectedConsistency,
-        color: selectedColorHex,
+        consistency: values.consistency,
+        color: values.colorHex,
       });
 
       if (locToUse) {
@@ -307,6 +375,9 @@ export const WalkScreen = () => {
         'No se pudo registrar',
         'Ocurrió un problema al guardar la deposición. Inténtalo de nuevo.',
       );
+    } finally {
+      setIsSavingPoop(false);
+      setPendingEventPet(null);
     }
   };
 
@@ -326,9 +397,11 @@ export const WalkScreen = () => {
         <Text style={styles.activePetText}>
           {isLoadingPet
             ? 'Cargando mascota activa...'
-            : activePet
-              ? `Paseando con ${activePet.name}${isWalking ? ' 🔒' : ''}`
-              : 'Sin mascota activa'}
+            : isWalking && participatingPets.length > 0
+              ? `Paseando con ${participatingPets.map((pet) => pet.name).join(' y ')} 🔒`
+              : activePet
+                ? `Paseando con ${activePet.name}`
+                : 'Sin mascota activa'}
         </Text>
       </View>
 
@@ -367,62 +440,35 @@ export const WalkScreen = () => {
         </View>
       )}
 
-      <Modal visible={isModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>💩 Registrar Deposición</Text>
+      <DroppingFormModal
+        visible={isModalVisible}
+        isSubmitting={isSavingPoop}
+        onClose={() => setIsModalVisible(false)}
+        onSubmit={handleSavePoop}
+      />
 
-            <Text style={styles.label}>Consistencia / Estado:</Text>
-            <View style={styles.optionsRow}>
-              {[
-                { key: 'hard', label: '🪨 Dura' },
-                { key: 'normal', label: '👍 Normal' },
-                { key: 'soft', label: '🍦 Blanda' },
-                { key: 'diarrhea', label: '🌊 Diarrea' },
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item.key}
-                  style={[
-                    styles.chip,
-                    selectedConsistency === item.key && styles.chipSelected,
-                  ]}
-                  onPress={() =>
-                    setSelectedConsistency(item.key as PoopConsistency)
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      selectedConsistency === item.key &&
-                        styles.chipTextSelected,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+      <PetSelectorModal
+        visible={isPetSelectorVisible}
+        title="¿Con qué mascotas vas a pasear?"
+        pets={pets}
+        multiSelect
+        initialSelectedIds={activePet ? [activePet.id] : []}
+        confirmLabel="Empezar paseo"
+        onClose={() => setIsPetSelectorVisible(false)}
+        onConfirm={(selectedPets) => {
+          setIsPetSelectorVisible(false);
+          startWalkWithPets(selectedPets);
+        }}
+      />
 
-            <Text style={styles.label}>Tono / Color Fecal:</Text>
-            <ColorGradientPicker
-              selectedHexColor={selectedColorHex}
-              onColorChange={(hex) => setSelectedColorHex(hex)}
-            />
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setIsModalVisible(false)}
-              >
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSavePoop}>
-                <Text style={styles.saveText}>Guardar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <PetSelectorModal
+        visible={isWhoDidItVisible}
+        title="¿Quién lo hizo?"
+        pets={participatingPets}
+        multiSelect={false}
+        onClose={() => setIsWhoDidItVisible(false)}
+        onConfirm={handleWhoDidItConfirm}
+      />
 
       <Modal
         visible={isHeatmapVisible}
@@ -482,133 +528,134 @@ export const WalkScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginVertical: 10,
-    color: '#333',
-  },
-  activePetBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    marginBottom: 8,
-    elevation: 2,
-  },
-  activePetAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
-  activePetEmoji: { fontSize: 18, marginRight: 8 },
-  activePetText: { fontSize: 13, fontWeight: '600', color: '#333' },
-  button: {
-    paddingVertical: 14,
-    paddingHorizontal: 30,
-    borderRadius: 8,
-    elevation: 3,
-  },
-  startBtn: { backgroundColor: '#4CAF50', marginTop: 20 },
-  endBtn: { backgroundColor: '#F44336', marginTop: 15 },
-  buttonText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
-  controls: { alignItems: 'center', width: '100%' },
-  poopBtn: {
-    backgroundColor: '#795548',
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 12,
-    elevation: 4,
-    marginTop: 10,
-  },
-  poopText: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold' },
-  heatmapBtn: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#F44336',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginBottom: 4,
-  },
-  heatmapBtnText: { color: '#F44336', fontWeight: 'bold', fontSize: 13 },
-  heatmapLoading: {
-    height: 320,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heatmapLoadingText: { marginTop: 8, fontSize: 13, color: '#666' },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    width: '100%',
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'center',
-    color: '#333',
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 12,
-    marginBottom: 8,
-    color: '#555',
-  },
-  optionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 10,
-  },
-  chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  chipSelected: { backgroundColor: '#795548', borderColor: '#795548' },
-  chipText: { fontSize: 13, color: '#333' },
-  chipTextSelected: { color: '#fff', fontWeight: 'bold' },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 25,
-  },
-  cancelBtn: {
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#eee',
-    flex: 1,
-    marginRight: 10,
-    alignItems: 'center',
-  },
-  cancelText: { color: '#666', fontWeight: 'bold' },
-  saveBtn: {
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#4CAF50',
-    flex: 1,
-    alignItems: 'center',
-  },
-  saveText: { color: '#fff', fontWeight: 'bold' },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: 20,
+      paddingBottom: 20,
+      alignItems: 'center',
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      marginVertical: 10,
+      color: colors.text,
+    },
+    activePetBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 20,
+      marginBottom: 8,
+      elevation: 2,
+    },
+    activePetAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+    activePetEmoji: { fontSize: 18, marginRight: 8 },
+    activePetText: { fontSize: 13, fontWeight: '600', color: colors.text },
+    button: {
+      paddingVertical: 14,
+      paddingHorizontal: 30,
+      borderRadius: 8,
+      elevation: 3,
+    },
+    startBtn: { backgroundColor: colors.primary, marginTop: 20 },
+    endBtn: { backgroundColor: colors.danger, marginTop: 15 },
+    buttonText: { color: colors.white, fontSize: 16, fontWeight: 'bold' },
+    controls: { alignItems: 'center', width: '100%' },
+    poopBtn: {
+      backgroundColor: '#795548',
+      paddingVertical: 16,
+      paddingHorizontal: 40,
+      borderRadius: 12,
+      elevation: 4,
+      marginTop: 10,
+    },
+    poopText: { color: colors.white, fontSize: 20, fontWeight: 'bold' },
+    heatmapBtn: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.danger,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 20,
+      marginBottom: 4,
+    },
+    heatmapBtnText: { color: colors.danger, fontWeight: 'bold', fontSize: 13 },
+    heatmapLoading: {
+      height: 320,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heatmapLoadingText: { marginTop: 8, fontSize: 13, color: colors.textMuted },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    modalContent: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 20,
+      width: '100%',
+      elevation: 5,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      marginBottom: 15,
+      textAlign: 'center',
+      color: colors.text,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      marginTop: 12,
+      marginBottom: 8,
+      color: colors.textMuted,
+    },
+    optionsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 10,
+    },
+    chip: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 20,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    chipSelected: { backgroundColor: '#795548', borderColor: '#795548' },
+    chipText: { fontSize: 13, color: colors.text },
+    chipTextSelected: { color: colors.white, fontWeight: 'bold' },
+    modalButtons: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 25,
+    },
+    cancelBtn: {
+      padding: 12,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceAlt,
+      flex: 1,
+      marginRight: 10,
+      alignItems: 'center',
+    },
+    cancelText: { color: colors.textMuted, fontWeight: 'bold' },
+    saveBtn: {
+      padding: 12,
+      borderRadius: 8,
+      backgroundColor: colors.primary,
+      flex: 1,
+      alignItems: 'center',
+    },
+    saveText: { color: colors.white, fontWeight: 'bold' },
+  });

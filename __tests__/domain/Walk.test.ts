@@ -6,7 +6,7 @@ describe('Walk', () => {
   it('calcula la distancia recorrida al finalizar el paseo', () => {
     const walk = new Walk({
       id: 'walk-1',
-      petId: 'pet-1',
+      petIds: ['pet-1'],
       startTime: new Date('2026-01-01T10:00:00Z'),
       route: [],
     });
@@ -26,7 +26,7 @@ describe('Walk', () => {
   it('no permite añadir ubicaciones ni finalizar dos veces un paseo ya finalizado', () => {
     const walk = new Walk({
       id: 'walk-2',
-      petId: 'pet-1',
+      petIds: ['pet-1'],
       startTime: new Date(),
       route: [new Location({ latitude: 0, longitude: 0 })],
     });

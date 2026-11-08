@@ -4,7 +4,7 @@ import { SyncQueue } from './SyncQueue';
 
 const serializeWalk = (walk: Walk): WalkProps => ({
   id: walk.id,
-  petId: walk.petId,
+  petIds: walk.petIds,
   startTime: walk.startTime,
   endTime: walk.endTime,
   route: walk.route,

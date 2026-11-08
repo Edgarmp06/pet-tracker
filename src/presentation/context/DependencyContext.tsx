@@ -2,6 +2,7 @@ import React, { createContext, useContext } from 'react';
 import { AsyncStorageDroppingRepository } from '../../infrastructure/adapters/AsyncStorageDroppingRepository';
 import { AsyncStoragePetRepository } from '../../infrastructure/adapters/AsyncStoragePetRepository';
 import { AsyncStorageWalkRepository } from '../../infrastructure/adapters/AsyncStorageWalkRepository';
+import { AsyncStoragePetEventRepository } from '../../infrastructure/adapters/AsyncStoragePetEventRepository';
 import { MockAuthAdapter } from '../../infrastructure/adapters/MockAuthAdapter';
 import { SupabaseAuthAdapter } from '../../infrastructure/adapters/SupabaseAuthAdapter';
 import { SupabasePetRepository } from '../../infrastructure/adapters/SupabasePetRepository';
@@ -20,7 +21,14 @@ import { RecordDroppingUseCase } from '../../application/use-cases/RecordDroppin
 import {
   GetPetsUseCase,
   SavePetUseCase,
+  UpdatePetUseCase,
+  DeletePetUseCase,
 } from '../../application/use-cases/PetUseCases';
+import {
+  UpdateUserProfileUseCase,
+  RequestPasswordResetUseCase,
+  DeleteAccountUseCase,
+} from '../../application/use-cases/UserAccountUseCases';
 import { StartWalkUseCase } from '../../application/use-cases/StartWalkUseCase';
 import { EndWalkUseCase } from '../../application/use-cases/EndWalkUseCase';
 import { GetActiveWalkUseCase } from '../../application/use-cases/GetActiveWalkUseCase';
@@ -29,6 +37,10 @@ import { ScheduleWalkReminderUseCase } from '../../application/use-cases/Schedul
 import { CancelWalkReminderUseCase } from '../../application/use-cases/CancelWalkReminderUseCase';
 import { GetPetDroppingLocationsUseCase } from '../../application/use-cases/GetPetDroppingLocationsUseCase';
 import { GetClinicalMetricsUseCase } from '../../application/use-cases/GetClinicalMetricsUseCase';
+import {
+  RecordPetEventUseCase,
+  GetPetEventsUseCase,
+} from '../../application/use-cases/PetEventUseCases';
 import { IAuthService } from '../../domain/ports/IAuthService';
 import { IPetRepository } from '../../domain/ports/IPetRepository';
 import { IDroppingRepository } from '../../domain/ports/IDroppingRepository';
@@ -40,6 +52,8 @@ import { INotificationService } from '../../domain/ports/INotificationService';
 const localPetRepository = new AsyncStoragePetRepository();
 const localDroppingRepository = new AsyncStorageDroppingRepository();
 const localWalkRepository = new AsyncStorageWalkRepository();
+// Solo local por ahora (sin sync a Supabase): ver nota en el adapter.
+const petEventRepository = new AsyncStoragePetEventRepository();
 const gpsService = new ExpoGpsAdapter();
 const imagePickerAdapter = new ExpoImagePickerAdapter();
 const notificationService: INotificationService = new ExpoNotificationAdapter();
@@ -99,6 +113,8 @@ if (isSupabaseConfigured()) {
 const recordDroppingUseCase = new RecordDroppingUseCase(droppingRepository);
 const getPetsUseCase = new GetPetsUseCase(petRepository);
 const savePetUseCase = new SavePetUseCase(petRepository);
+const updatePetUseCase = new UpdatePetUseCase(petRepository);
+const deletePetUseCase = new DeletePetUseCase(petRepository);
 const startWalkUseCase = new StartWalkUseCase(walkRepository);
 const endWalkUseCase = new EndWalkUseCase(walkRepository);
 const getActiveWalkUseCase = new GetActiveWalkUseCase(walkRepository);
@@ -118,12 +134,21 @@ const getPetDroppingLocationsUseCase = new GetPetDroppingLocationsUseCase(
 const getClinicalMetricsUseCase = new GetClinicalMetricsUseCase(
   droppingRepository,
 );
+const updateUserProfileUseCase = new UpdateUserProfileUseCase(authService);
+const requestPasswordResetUseCase = new RequestPasswordResetUseCase(
+  authService,
+);
+const deleteAccountUseCase = new DeleteAccountUseCase(authService);
+const recordPetEventUseCase = new RecordPetEventUseCase(petEventRepository);
+const getPetEventsUseCase = new GetPetEventsUseCase(petEventRepository);
 
 interface DependencyContextType {
   droppingRepository: IDroppingRepository;
   recordDroppingUseCase: RecordDroppingUseCase;
   getPetsUseCase: GetPetsUseCase;
   savePetUseCase: SavePetUseCase;
+  updatePetUseCase: UpdatePetUseCase;
+  deletePetUseCase: DeletePetUseCase;
   startWalkUseCase: StartWalkUseCase;
   endWalkUseCase: EndWalkUseCase;
   getActiveWalkUseCase: GetActiveWalkUseCase;
@@ -132,6 +157,11 @@ interface DependencyContextType {
   cancelWalkReminderUseCase: CancelWalkReminderUseCase;
   getPetDroppingLocationsUseCase: GetPetDroppingLocationsUseCase;
   getClinicalMetricsUseCase: GetClinicalMetricsUseCase;
+  updateUserProfileUseCase: UpdateUserProfileUseCase;
+  requestPasswordResetUseCase: RequestPasswordResetUseCase;
+  deleteAccountUseCase: DeleteAccountUseCase;
+  recordPetEventUseCase: RecordPetEventUseCase;
+  getPetEventsUseCase: GetPetEventsUseCase;
   authService: IAuthService;
   gpsService: IGpsService;
   imagePickerAdapter: IImagePickerService;
@@ -150,6 +180,8 @@ export const DependencyProvider: React.FC<{ children: React.ReactNode }> = ({
         recordDroppingUseCase,
         getPetsUseCase,
         savePetUseCase,
+        updatePetUseCase,
+        deletePetUseCase,
         startWalkUseCase,
         endWalkUseCase,
         getActiveWalkUseCase,
@@ -158,6 +190,11 @@ export const DependencyProvider: React.FC<{ children: React.ReactNode }> = ({
         cancelWalkReminderUseCase,
         getPetDroppingLocationsUseCase,
         getClinicalMetricsUseCase,
+        updateUserProfileUseCase,
+        requestPasswordResetUseCase,
+        deleteAccountUseCase,
+        recordPetEventUseCase,
+        getPetEventsUseCase,
         authService,
         gpsService,
         imagePickerAdapter,

@@ -23,6 +23,13 @@ class InMemoryPetRepository implements IPetRepository {
     }
     this.pets.push(pet);
   }
+
+  async delete(petId: string): Promise<void> {
+    if (this.shouldFail) {
+      throw new Error('sin conexión');
+    }
+    this.pets = this.pets.filter((p) => p.id !== petId);
+  }
 }
 
 class InMemoryDroppingRepository implements IDroppingRepository {
@@ -57,7 +64,7 @@ class InMemoryWalkRepository implements IWalkRepository {
   }
 
   async findActiveByPetId(petId: string): Promise<Walk | null> {
-    return this.walks.find((w) => w.petId === petId && !w.endTime) || null;
+    return this.walks.find((w) => w.petIds.includes(petId) && !w.endTime) || null;
   }
 }
 
@@ -81,6 +88,25 @@ describe('SyncManager.syncNow', () => {
     await manager.syncNow();
 
     expect(remotePetRepository.pets).toHaveLength(1);
+    expect(await queue.list()).toHaveLength(0);
+  });
+
+  it('procesa y retira las operaciones de borrado de mascotas pendientes', async () => {
+    const queue = new SyncQueue();
+    const remotePetRepository = new InMemoryPetRepository();
+    remotePetRepository.pets.push(new Pet({ id: 'pet-1', userId: 'user-1', name: 'Max' }));
+
+    await queue.enqueue({
+      entity: 'pet',
+      entityId: 'pet-1',
+      type: 'delete',
+      payload: { id: 'pet-1' },
+    });
+
+    const manager = new SyncManager(queue, { pet: remotePetRepository });
+    await manager.syncNow();
+
+    expect(remotePetRepository.pets).toHaveLength(0);
     expect(await queue.list()).toHaveLength(0);
   });
 
@@ -165,7 +191,7 @@ describe('SyncManager.syncNow', () => {
       type: 'upsert',
       payload: {
         id: 'walk-1',
-        petId: 'pet-1',
+        petIds: ['pet-1'],
         startTime: new Date().toISOString(),
         route: [],
         distanceMeters: 0,
@@ -190,7 +216,7 @@ describe('SyncManager.syncNow', () => {
       type: 'upsert',
       payload: {
         id: 'walk-1',
-        petId: 'pet-1',
+        petIds: ['pet-1'],
         startTime: new Date().toISOString(),
         route: [],
         distanceMeters: 0,
@@ -227,7 +253,7 @@ describe('SyncManager.syncNow', () => {
       type: 'upsert',
       payload: {
         id: 'walk-1',
-        petId: 'pet-1',
+        petIds: ['pet-1'],
         startTime: new Date().toISOString(),
         route: [],
         distanceMeters: 0,

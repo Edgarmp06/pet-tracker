@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PoopConsistency } from '../../domain/entities/Dropping';
 import {
   ClinicalMetrics,
   WeeklyMetricBucket,
 } from '../../application/use-cases/GetClinicalMetricsUseCase';
+import { ThemeColors, useTheme } from '../context/ThemeContext';
 
 interface Props {
   metrics: ClinicalMetrics | null;
@@ -26,10 +27,13 @@ const CONSISTENCY_LABELS: { key: PoopConsistency; label: string }[] = [
 
 const BAR_MAX_HEIGHT = 90;
 
-const TrendBar: React.FC<{ bucket: WeeklyMetricBucket; maxTotal: number }> = ({
-  bucket,
-  maxTotal,
-}) => {
+type Styles = ReturnType<typeof createStyles>;
+
+const TrendBar: React.FC<{
+  bucket: WeeklyMetricBucket;
+  maxTotal: number;
+  styles: Styles;
+}> = ({ bucket, maxTotal, styles }) => {
   const heightRatio = maxTotal > 0 ? bucket.total / maxTotal : 0;
 
   return (
@@ -49,6 +53,9 @@ const TrendBar: React.FC<{ bucket: WeeklyMetricBucket; maxTotal: number }> = ({
 };
 
 export const ClinicalMetricsChart: React.FC<Props> = ({ metrics }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (!metrics || metrics.totalCount === 0) {
     return (
       <View style={styles.emptyState}>
@@ -67,7 +74,12 @@ export const ClinicalMetricsChart: React.FC<Props> = ({ metrics }) => {
       <Text style={styles.chartTitle}>Tendencia de deposiciones</Text>
       <View style={styles.trendRow}>
         {metrics.weeklyBuckets.map((bucket) => (
-          <TrendBar key={bucket.label} bucket={bucket} maxTotal={maxTotal} />
+          <TrendBar
+            key={bucket.label}
+            bucket={bucket}
+            maxTotal={maxTotal}
+            styles={styles}
+          />
         ))}
       </View>
 
@@ -103,76 +115,77 @@ export const ClinicalMetricsChart: React.FC<Props> = ({ metrics }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { width: '100%' },
-  chartTitle: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#444',
-    marginBottom: 10,
-  },
-  secondChartTitle: { marginTop: 18 },
-  trendRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  trendBarColumn: { alignItems: 'center', flex: 1 },
-  trendBarTrack: {
-    height: BAR_MAX_HEIGHT,
-    width: 18,
-    justifyContent: 'flex-end',
-  },
-  trendBarFill: {
-    width: '100%',
-    backgroundColor: '#1976D2',
-    borderRadius: 4,
-  },
-  trendBarValue: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 4,
-  },
-  trendBarLabel: {
-    fontSize: 9,
-    color: '#888',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  consistencyList: { width: '100%' },
-  consistencyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  consistencyLabel: { width: 58, fontSize: 12, color: '#555' },
-  consistencyTrack: {
-    flex: 1,
-    height: 10,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 5,
-    marginHorizontal: 8,
-    overflow: 'hidden',
-  },
-  consistencyFill: { height: '100%', borderRadius: 5 },
-  consistencyCount: {
-    width: 24,
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'right',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
-  },
-  emptyStateEmoji: { fontSize: 32, marginBottom: 8 },
-  emptyStateText: {
-    fontSize: 12,
-    color: '#888',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: { width: '100%' },
+    chartTitle: {
+      fontSize: 13,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: 10,
+    },
+    secondChartTitle: { marginTop: 18 },
+    trendRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+    },
+    trendBarColumn: { alignItems: 'center', flex: 1 },
+    trendBarTrack: {
+      height: BAR_MAX_HEIGHT,
+      width: 18,
+      justifyContent: 'flex-end',
+    },
+    trendBarFill: {
+      width: '100%',
+      backgroundColor: '#1976D2',
+      borderRadius: 4,
+    },
+    trendBarValue: {
+      fontSize: 11,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginTop: 4,
+    },
+    trendBarLabel: {
+      fontSize: 9,
+      color: colors.textMuted,
+      marginTop: 2,
+      textAlign: 'center',
+    },
+    consistencyList: { width: '100%' },
+    consistencyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    consistencyLabel: { width: 58, fontSize: 12, color: colors.textMuted },
+    consistencyTrack: {
+      flex: 1,
+      height: 10,
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: 5,
+      marginHorizontal: 8,
+      overflow: 'hidden',
+    },
+    consistencyFill: { height: '100%', borderRadius: 5 },
+    consistencyCount: {
+      width: 24,
+      fontSize: 12,
+      fontWeight: 'bold',
+      color: colors.text,
+      textAlign: 'right',
+    },
+    emptyState: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 24,
+    },
+    emptyStateEmoji: { fontSize: 32, marginBottom: 8 },
+    emptyStateText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      textAlign: 'center',
+      paddingHorizontal: 20,
+    },
+  });

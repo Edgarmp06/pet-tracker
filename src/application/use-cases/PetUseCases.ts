@@ -1,4 +1,4 @@
-import { Pet } from '../../domain/entities/Pet';
+import { Pet, PetGender, PetSpecies } from '../../domain/entities/Pet';
 import { IPetRepository } from '../../domain/ports/IPetRepository';
 
 export class GetPetsUseCase {
@@ -15,6 +15,8 @@ export interface CreatePetDTO {
   breed?: string;
   age?: number;
   avatarUri?: string;
+  species?: PetSpecies;
+  gender?: PetGender;
 }
 
 export class SavePetUseCase {
@@ -28,9 +30,40 @@ export class SavePetUseCase {
       breed: dto.breed,
       age: dto.age,
       avatarUri: dto.avatarUri,
+      species: dto.species,
+      gender: dto.gender,
     });
 
     await this.petRepository.save(pet);
     return pet;
+  }
+}
+
+export interface UpdatePetDTO {
+  id: string;
+  userId: string;
+  name: string;
+  breed?: string;
+  age?: number;
+  avatarUri?: string;
+  species?: PetSpecies;
+  gender?: PetGender;
+}
+
+export class UpdatePetUseCase {
+  constructor(private petRepository: IPetRepository) {}
+
+  async execute(dto: UpdatePetDTO): Promise<Pet> {
+    const pet = new Pet({ ...dto });
+    await this.petRepository.save(pet);
+    return pet;
+  }
+}
+
+export class DeletePetUseCase {
+  constructor(private petRepository: IPetRepository) {}
+
+  async execute(petId: string): Promise<void> {
+    await this.petRepository.delete(petId);
   }
 }

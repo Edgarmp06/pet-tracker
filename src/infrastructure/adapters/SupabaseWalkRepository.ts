@@ -5,7 +5,7 @@ import { Location } from '../../domain/value-objects/Location';
 
 interface WalkRow {
   id: string;
-  pet_id: string;
+  pet_ids: string[];
   start_time: string;
   end_time: string | null;
   distance_meters: number;
@@ -15,7 +15,7 @@ interface WalkRow {
 const toWalk = (row: WalkRow): Walk =>
   new Walk({
     id: row.id,
-    petId: row.pet_id,
+    petIds: row.pet_ids || [],
     startTime: new Date(row.start_time),
     endTime: row.end_time ? new Date(row.end_time) : undefined,
     route: (row.route || []).map((loc) => new Location(loc)),
@@ -57,7 +57,7 @@ export class SupabaseWalkRepository implements IWalkRepository {
     const { data, error } = await getSupabaseClient()
       .from('walks')
       .select('*')
-      .eq('pet_id', petId)
+      .contains('pet_ids', [petId])
       .is('end_time', null)
       .is('deleted_at', null)
       .maybeSingle();
@@ -76,7 +76,7 @@ export class SupabaseWalkRepository implements IWalkRepository {
 
     const { error } = await getSupabaseClient().from('walks').upsert({
       id: walk.id,
-      pet_id: walk.petId,
+      pet_ids: walk.petIds,
       user_id: userId,
       start_time: walk.startTime,
       end_time: walk.endTime ?? null,

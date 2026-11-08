@@ -2,7 +2,7 @@ import { Location } from '../value-objects/Location';
 
 export interface WalkProps {
   id: string;
-  petId: string;
+  petIds: string[];
   startTime: Date;
   endTime?: Date;
   route: Location[];
@@ -11,7 +11,7 @@ export interface WalkProps {
 
 export class Walk {
   readonly id: string;
-  readonly petId: string;
+  readonly petIds: string[];
   readonly startTime: Date;
   private _endTime?: Date;
   private _route: Location[];
@@ -19,7 +19,7 @@ export class Walk {
 
   constructor(props: WalkProps) {
     this.id = props.id;
-    this.petId = props.petId;
+    this.petIds = props.petIds;
     this.startTime = props.startTime;
     this._endTime = props.endTime;
     this._route = props.route || [];

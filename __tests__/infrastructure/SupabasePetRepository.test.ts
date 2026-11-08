@@ -6,9 +6,14 @@ const mockEq = jest.fn(() => ({ is: mockIs }));
 const mockSelect = jest.fn(() => ({ eq: mockEq }));
 const mockUpsert: jest.Mock<(...args: any[]) => Promise<{ error: unknown }>> =
   jest.fn();
+const mockUpdateEq: jest.Mock<(...args: any[]) => Promise<{ error: unknown }>> =
+  jest.fn();
+const mockUpdate: jest.Mock<(...args: any[]) => { eq: typeof mockUpdateEq }> =
+  jest.fn(() => ({ eq: mockUpdateEq }));
 const mockFrom = jest.fn((_table: string) => ({
   select: mockSelect,
   upsert: mockUpsert,
+  update: mockUpdate,
 }));
 
 jest.mock('../../src/infrastructure/config/supabaseClient', () => ({
@@ -23,6 +28,7 @@ describe('SupabasePetRepository', () => {
   beforeEach(() => {
     mockIs.mockReset();
     mockUpsert.mockReset();
+    mockUpdateEq.mockReset();
   });
 
   it('mapea las filas de Supabase (snake_case) a entidades Pet', async () => {
@@ -35,6 +41,8 @@ describe('SupabasePetRepository', () => {
           breed: 'Labrador',
           age: 4,
           avatar_uri: 'file://avatar.png',
+          species: 'dog',
+          gender: 'male',
         },
       ],
       error: null,
@@ -50,6 +58,8 @@ describe('SupabasePetRepository', () => {
     expect(pets[0].breed).toBe('Labrador');
     expect(pets[0].age).toBe(4);
     expect(pets[0].avatarUri).toBe('file://avatar.png');
+    expect(pets[0].species).toBe('dog');
+    expect(pets[0].gender).toBe('male');
   });
 
   it('lanza un error legible si Supabase devuelve un error al leer', async () => {
@@ -65,7 +75,15 @@ describe('SupabasePetRepository', () => {
 
     const repository = new SupabasePetRepository();
     await repository.save(
-      new Pet({ id: 'pet-1', userId: 'user-1', name: 'Max', breed: 'Perro', age: 3 }),
+      new Pet({
+        id: 'pet-1',
+        userId: 'user-1',
+        name: 'Max',
+        breed: 'Perro',
+        age: 3,
+        species: 'dog',
+        gender: 'male',
+      }),
     );
 
     expect(mockFrom).toHaveBeenCalledWith('pets');
@@ -76,6 +94,8 @@ describe('SupabasePetRepository', () => {
       breed: 'Perro',
       age: 3,
       avatar_uri: null,
+      species: 'dog',
+      gender: 'male',
     });
   });
 
@@ -87,5 +107,26 @@ describe('SupabasePetRepository', () => {
     await expect(
       repository.save(new Pet({ id: 'pet-1', userId: 'user-1', name: 'Max' })),
     ).rejects.toThrow(/duplicate key/);
+  });
+
+  it('marca deleted_at en vez de borrar la fila al eliminar', async () => {
+    mockUpdateEq.mockResolvedValue({ error: null });
+
+    const repository = new SupabasePetRepository();
+    await repository.delete('pet-1');
+
+    expect(mockFrom).toHaveBeenCalledWith('pets');
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ deleted_at: expect.any(String) }),
+    );
+    expect(mockUpdateEq).toHaveBeenCalledWith('id', 'pet-1');
+  });
+
+  it('lanza un error legible si Supabase devuelve un error al eliminar', async () => {
+    mockUpdateEq.mockResolvedValue({ error: { message: 'not allowed' } });
+
+    const repository = new SupabasePetRepository();
+
+    await expect(repository.delete('pet-1')).rejects.toThrow(/not allowed/);
   });
 });

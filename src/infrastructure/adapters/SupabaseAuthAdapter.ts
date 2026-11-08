@@ -77,4 +77,41 @@ export class SupabaseAuthAdapter implements IAuthService {
       throw new Error('No se pudo cerrar sesión. Inténtalo de nuevo.');
     }
   }
+
+  async updateProfile(name: string): Promise<User> {
+    const { data, error } = await getSupabaseClient().auth.updateUser({
+      data: { name },
+    });
+
+    if (error || !data.user) {
+      throw new Error(error?.message || 'No se pudo actualizar el perfil.');
+    }
+
+    return toDomainUser(data.user);
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const { error } = await getSupabaseClient().auth.resetPasswordForEmail(
+      email,
+    );
+
+    if (error) {
+      throw new Error(
+        error.message || 'No se pudo enviar el correo de recuperación.',
+      );
+    }
+  }
+
+  async deleteAccount(): Promise<void> {
+    // El cliente solo tiene la clave anon: borrar el usuario de verdad
+    // requiere la service_role key desde el backend (Edge Function), que
+    // no forma parte de este proyecto. Cerramos la sesión local y
+    // devolvemos un mensaje claro para que el usuario sepa qué esperar.
+    await getSupabaseClient().auth.signOut();
+    throw new Error(
+      'Tu sesión se ha cerrado en este dispositivo. Para eliminar ' +
+        'definitivamente tu cuenta y tus datos de Supabase, escríbenos y lo ' +
+        'gestionamos manualmente.',
+    );
+  }
 }

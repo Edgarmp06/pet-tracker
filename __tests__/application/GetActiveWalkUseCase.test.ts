@@ -20,7 +20,7 @@ class InMemoryWalkRepository implements IWalkRepository {
   }
 
   async findActiveByPetId(petId: string): Promise<Walk | null> {
-    return this.walks.find((w) => w.petId === petId && !w.endTime) || null;
+    return this.walks.find((w) => w.petIds.includes(petId) && !w.endTime) || null;
   }
 }
 
@@ -29,7 +29,7 @@ describe('GetActiveWalkUseCase', () => {
     const repository = new InMemoryWalkRepository();
     const orphan = new Walk({
       id: 'walk-orphan',
-      petId: 'pet-1',
+      petIds: ['pet-1'],
       startTime: new Date(),
       route: [],
     });
@@ -54,7 +54,7 @@ describe('GetActiveWalkUseCase', () => {
     const repository = new InMemoryWalkRepository();
     const finished = new Walk({
       id: 'walk-finished',
-      petId: 'pet-1',
+      petIds: ['pet-1'],
       startTime: new Date(),
       route: [],
     });

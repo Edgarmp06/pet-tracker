@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
@@ -13,6 +14,7 @@ import { ProfileScreen } from './src/presentation/screens/ProfileScreen';
 import { LoginScreen } from './src/presentation/screens/LoginScreen';
 import { DependencyProvider, authService } from './src/presentation/context/DependencyContext';
 import { ActivePetProvider } from './src/presentation/context/ActivePetContext';
+import { ThemeProvider, useTheme } from './src/presentation/context/ThemeContext';
 import { User } from './src/domain/entities/User';
 
 const Tab = createBottomTabNavigator();
@@ -23,21 +25,23 @@ interface MainNavigatorProps {
 
 const MainNavigator: React.FC<MainNavigatorProps> = ({ onLogout }) => {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   return (
     <NavigationContainer>
       <Tab.Navigator
+        initialRouteName="Profile"
         screenOptions={({ route }) => ({
           headerShown: false,
-          tabBarActiveTintColor: '#4CAF50',
-          tabBarInactiveTintColor: '#888888',
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textMuted,
           tabBarStyle: {
             height: 60 + insets.bottom,
             paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
             paddingTop: 8,
-            backgroundColor: '#ffffff',
+            backgroundColor: colors.surface,
             borderTopWidth: 1,
-            borderTopColor: '#e2e8f0',
+            borderTopColor: colors.border,
             elevation: 8,
           },
           tabBarLabelStyle: {
@@ -57,22 +61,23 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({ onLogout }) => {
           },
         })}
       >
+        <Tab.Screen name="Profile" options={{ tabBarLabel: 'Perfil' }}>
+          {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
+        </Tab.Screen>
         <Tab.Screen
           name="Walk"
           component={WalkScreen}
           options={{ tabBarLabel: 'Paseo' }}
         />
-        <Tab.Screen name="Profile" options={{ tabBarLabel: 'Perfil' }}>
-          {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
-        </Tab.Screen>
       </Tab.Navigator>
     </NavigationContainer>
   );
 };
 
-export default function App() {
+const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { colors, isDark } = useTheme();
 
   useEffect(() => {
     authService
@@ -89,25 +94,36 @@ export default function App() {
       });
   }, []);
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-      </View>
-    );
-  }
+  return (
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {loading ? (
+        <View
+          style={[styles.loadingContainer, { backgroundColor: colors.background }]}
+        >
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        <DependencyProvider>
+          {!currentUser ? (
+            <LoginScreen onLoginSuccess={(user) => setCurrentUser(user)} />
+          ) : (
+            <ActivePetProvider>
+              <MainNavigator onLogout={() => setCurrentUser(null)} />
+            </ActivePetProvider>
+          )}
+        </DependencyProvider>
+      )}
+    </>
+  );
+};
 
+export default function App() {
   return (
     <SafeAreaProvider>
-      <DependencyProvider>
-        {!currentUser ? (
-          <LoginScreen onLoginSuccess={(user) => setCurrentUser(user)} />
-        ) : (
-          <ActivePetProvider>
-            <MainNavigator onLogout={() => setCurrentUser(null)} />
-          </ActivePetProvider>
-        )}
-      </DependencyProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
@@ -117,6 +133,5 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
   },
 });

@@ -48,4 +48,16 @@ export class AsyncStoragePetRepository implements IPetRepository {
       throw new Error('No se pudo guardar la mascota en el almacenamiento local.');
     }
   }
+
+  async delete(petId: string): Promise<void> {
+    const existing = await this.readAll();
+    const filtered = existing.filter((p) => p.id !== petId);
+
+    try {
+      await AsyncStorage.setItem(PETS_KEY, JSON.stringify(filtered));
+    } catch (error) {
+      console.error('No se pudo eliminar la mascota:', error);
+      throw new Error('No se pudo eliminar la mascota del almacenamiento local.');
+    }
+  }
 }

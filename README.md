@@ -121,9 +121,9 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=tu-clave-anon-publica
 
 1. Crea un proyecto nuevo en [supabase.com](https://supabase.com).
 2. Abre el **SQL Editor** del proyecto.
-3. Pega y ejecuta el contenido de [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
+3. Pega y ejecuta, en orden, el contenido de [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), [`supabase/migrations/0002_add_pet_species_gender.sql`](supabase/migrations/0002_add_pet_species_gender.sql) y [`supabase/migrations/0003_walk_multi_pet.sql`](supabase/migrations/0003_walk_multi_pet.sql).
 
-Esto crea las tablas `pets`, `walks` y `droppings`, con **Row Level Security** habilitada para que cada usuario solo pueda ver/editar sus propios datos (`auth.uid() = user_id`), triggers de `updated_at` y columnas `deleted_at` preparadas para futuras eliminaciones sincronizadas.
+Esto crea las tablas `pets`, `walks` y `droppings`, con **Row Level Security** habilitada para que cada usuario solo pueda ver/editar sus propios datos (`auth.uid() = user_id`), triggers de `updated_at` y columnas `deleted_at` preparadas para eliminaciones sincronizadas (usadas hoy por el borrado de mascotas). La segunda migración añade `species` y `gender` a `pets`; la tercera convierte `walks` en paseos multi-mascota (`pet_ids` en vez de `pet_id`).
 
 ### 4. Ejecutar la app
 

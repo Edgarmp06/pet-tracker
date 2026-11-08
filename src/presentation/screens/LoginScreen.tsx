@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '../../domain/entities/User';
 import { useDependencies } from '../context/DependencyContext';
+import { ThemeColors, useTheme } from '../context/ThemeContext';
 
 interface Props {
   onLoginSuccess: (user: User) => void;
@@ -11,11 +12,14 @@ interface Props {
 type Mode = 'login' | 'register';
 
 export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
-  const { authService } = useDependencies();
+  const { authService, requestPasswordResetUseCase } = useDependencies();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const handleSubmit = async () => {
     if (!email.trim() || !email.includes('@')) {
@@ -47,6 +51,35 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim() || !email.includes('@')) {
+      Alert.alert(
+        'Email no válido',
+        'Introduce tu correo electrónico en el campo de arriba y pulsa de nuevo.',
+      );
+      return;
+    }
+
+    setIsSendingReset(true);
+    try {
+      await requestPasswordResetUseCase.execute(email.trim());
+      Alert.alert(
+        'Revisa tu correo',
+        'Si existe una cuenta con ese email, recibirás un enlace para restablecer tu contraseña.',
+      );
+    } catch (error) {
+      console.error('Error al solicitar el restablecimiento:', error);
+      Alert.alert(
+        'No se pudo enviar el correo',
+        error instanceof Error
+          ? error.message
+          : 'Ocurrió un problema. Inténtalo de nuevo.',
+      );
+    } finally {
+      setIsSendingReset(false);
     }
   };
 
@@ -91,6 +124,7 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
       <TextInput
         style={styles.input}
         placeholder="Correo electrónico"
+        placeholderTextColor={colors.textMuted}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
@@ -100,6 +134,7 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
       <TextInput
         style={styles.input}
         placeholder="Contraseña (mín. 6 caracteres)"
+        placeholderTextColor={colors.textMuted}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -131,6 +166,20 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
         </Text>
       </TouchableOpacity>
 
+      {mode === 'login' && (
+        <TouchableOpacity
+          style={styles.forgotPasswordBtn}
+          onPress={handleForgotPassword}
+          disabled={isSendingReset}
+        >
+          <Text style={styles.forgotPasswordText}>
+            {isSendingReset
+              ? 'Enviando...'
+              : '¿Has olvidado tu contraseña?'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity
         style={styles.resetStorageBtn}
         onPress={handleResetLocalStorage}
@@ -143,67 +192,77 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#f5f5f5',
-  },
-  logo: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  input: {
-    width: '100%',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    marginBottom: 20,
-    fontSize: 16,
-  },
-  loginBtn: {
-    width: '100%',
-    backgroundColor: '#4CAF50',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    elevation: 2,
-  },
-  loginBtnDisabled: {
-    opacity: 0.6,
-  },
-  loginBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  switchModeBtn: {
-    marginTop: 18,
-  },
-  switchModeText: {
-    color: '#4CAF50',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  resetStorageBtn: {
-    marginTop: 28,
-  },
-  resetStorageText: {
-    color: '#999',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+      backgroundColor: colors.background,
+    },
+    logo: {
+      fontSize: 32,
+      fontWeight: 'bold',
+      color: colors.primary,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: colors.textMuted,
+      marginBottom: 30,
+      textAlign: 'center',
+    },
+    input: {
+      width: '100%',
+      backgroundColor: colors.surface,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 20,
+      fontSize: 16,
+      color: colors.text,
+    },
+    loginBtn: {
+      width: '100%',
+      backgroundColor: colors.primary,
+      paddingVertical: 14,
+      borderRadius: 10,
+      alignItems: 'center',
+      elevation: 2,
+    },
+    loginBtnDisabled: {
+      opacity: 0.6,
+    },
+    loginBtnText: {
+      color: colors.white,
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    switchModeBtn: {
+      marginTop: 18,
+    },
+    switchModeText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    forgotPasswordBtn: {
+      marginTop: 14,
+    },
+    forgotPasswordText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    resetStorageBtn: {
+      marginTop: 28,
+    },
+    resetStorageText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+  });

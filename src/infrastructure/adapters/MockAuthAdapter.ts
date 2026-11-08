@@ -81,6 +81,46 @@ export class MockAuthAdapter implements IAuthService {
     }
   }
 
+  async updateProfile(name: string): Promise<User> {
+    const current = await this.getCurrentUser();
+    if (!current) {
+      throw new Error('No hay ninguna sesión iniciada.');
+    }
+
+    const users = await this.readUsersRegistry();
+    const record = users[current.email];
+    if (record) {
+      record.name = name;
+      await this.writeUsersRegistry(users);
+    }
+
+    const updated = new User({ ...current, name });
+    try {
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
+    } catch (error) {
+      console.error('No se pudo guardar el perfil actualizado:', error);
+      throw new Error('No se pudo actualizar el perfil.');
+    }
+
+    return updated;
+  }
+
+  // El mock no envía correos reales: simplemente confirma la petición, igual
+  // que haría Supabase (que por seguridad nunca revela si el email existe).
+  async requestPasswordReset(_email: string): Promise<void> {
+    return;
+  }
+
+  async deleteAccount(): Promise<void> {
+    const current = await this.getCurrentUser();
+    if (current) {
+      const users = await this.readUsersRegistry();
+      delete users[current.email];
+      await this.writeUsersRegistry(users);
+    }
+    await this.logout();
+  }
+
   private async readUsersRegistry(): Promise<Record<string, MockUserRecord>> {
     try {
       const json = await AsyncStorage.getItem(USERS_REGISTRY_KEY);

@@ -20,6 +20,10 @@ class InMemoryPetRepository implements IPetRepository {
       this.pets.push(pet);
     }
   }
+
+  async delete(petId: string): Promise<void> {
+    this.pets = this.pets.filter((p) => p.id !== petId);
+  }
 }
 
 class FailingPetRepository implements IPetRepository {
@@ -28,6 +32,10 @@ class FailingPetRepository implements IPetRepository {
   }
 
   async save(): Promise<void> {
+    throw new Error('sin conexión');
+  }
+
+  async delete(): Promise<void> {
     throw new Error('sin conexión');
   }
 }
@@ -79,5 +87,47 @@ describe('SyncedPetRepository', () => {
 
     expect(await queue.list()).toHaveLength(0);
     expect(remote.pets).toHaveLength(1);
+  });
+
+  it('elimina primero en local (local-first) aunque el remoto falle', async () => {
+    const local = new InMemoryPetRepository();
+    const remote = new FailingPetRepository();
+    const queue = new SyncQueue();
+    const repository = new SyncedPetRepository(local, remote, queue);
+
+    await local.save(samplePet());
+    await repository.delete('pet-1');
+
+    expect(await repository.findByUserId('user-1')).toHaveLength(0);
+  });
+
+  it('encola el borrado cuando el push en segundo plano falla, y no lo retira', async () => {
+    const local = new InMemoryPetRepository();
+    const remote = new FailingPetRepository();
+    const queue = new SyncQueue();
+    const repository = new SyncedPetRepository(local, remote, queue);
+
+    await local.save(samplePet());
+    await repository.delete('pet-1');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const pending = await queue.list();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].type).toBe('delete');
+  });
+
+  it('retira el borrado de la cola cuando el push en segundo plano tiene éxito', async () => {
+    const local = new InMemoryPetRepository();
+    const remote = new InMemoryPetRepository();
+    const queue = new SyncQueue();
+    const repository = new SyncedPetRepository(local, remote, queue);
+
+    await local.save(samplePet());
+    await remote.save(samplePet());
+    await repository.delete('pet-1');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(await queue.list()).toHaveLength(0);
+    expect(remote.pets).toHaveLength(0);
   });
 });

@@ -9,6 +9,8 @@ const serializePet = (pet: Pet): PetProps => ({
   breed: pet.breed,
   age: pet.age,
   avatarUri: pet.avatarUri,
+  species: pet.species,
+  gender: pet.gender,
 });
 
 /**
@@ -47,6 +49,19 @@ export class SyncedPetRepository implements IPetRepository {
     this.pushInBackground(pet);
   }
 
+  async delete(petId: string): Promise<void> {
+    await this.local.delete(petId);
+
+    await this.syncQueue.enqueue({
+      entity: 'pet',
+      entityId: petId,
+      type: 'delete',
+      payload: { id: petId },
+    });
+
+    this.pushDeleteInBackground(petId);
+  }
+
   private pushInBackground(pet: Pet): void {
     this.remote
       .save(pet)
@@ -54,6 +69,18 @@ export class SyncedPetRepository implements IPetRepository {
       .catch((error) => {
         console.warn(
           `No se pudo sincronizar la mascota ${pet.id} ahora, se reintentará más tarde:`,
+          error,
+        );
+      });
+  }
+
+  private pushDeleteInBackground(petId: string): void {
+    this.remote
+      .delete(petId)
+      .then(() => this.syncQueue.remove('pet', petId))
+      .catch((error) => {
+        console.warn(
+          `No se pudo sincronizar el borrado de la mascota ${petId} ahora, se reintentará más tarde:`,
           error,
         );
       });

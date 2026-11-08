@@ -13,7 +13,7 @@ describe('AsyncStorageWalkRepository', () => {
     const repository = new AsyncStorageWalkRepository();
     const walk = new Walk({
       id: 'walk-1',
-      petId: 'pet-A',
+      petIds: ['pet-A'],
       startTime: new Date(),
       route: [],
     });
@@ -29,7 +29,7 @@ describe('AsyncStorageWalkRepository', () => {
     const repository = new AsyncStorageWalkRepository();
     const walk = new Walk({
       id: 'walk-1',
-      petId: 'pet-A',
+      petIds: ['pet-A'],
       startTime: new Date('2026-01-01T10:00:00Z'),
       route: [],
     });
@@ -54,10 +54,10 @@ describe('AsyncStorageWalkRepository', () => {
     const repository = new AsyncStorageWalkRepository();
 
     await repository.save(
-      new Walk({ id: 'walk-A', petId: 'pet-A', startTime: new Date(), route: [] }),
+      new Walk({ id: 'walk-A', petIds: ['pet-A'], startTime: new Date(), route: [] }),
     );
     await repository.save(
-      new Walk({ id: 'walk-B', petId: 'pet-B', startTime: new Date(), route: [] }),
+      new Walk({ id: 'walk-B', petIds: ['pet-B'], startTime: new Date(), route: [] }),
     );
 
     expect(await repository.findById('walk-A')).not.toBeNull();

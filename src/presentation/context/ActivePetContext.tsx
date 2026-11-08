@@ -28,7 +28,7 @@ const ActivePetContext = createContext<ActivePetContextType | null>(null);
 export const ActivePetProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { getPetsUseCase, savePetUseCase, authService } = useDependencies();
+  const { getPetsUseCase, authService } = useDependencies();
   const [pets, setPets] = useState<Pet[]>([]);
   const [activePet, setActivePet] = useState<Pet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,20 +59,13 @@ export const ActivePetProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      let userPets = await getPetsUseCase.execute(user.id);
-
-      // Si el usuario no tiene ninguna mascota guardada, creamos una por defecto
-      if (userPets.length === 0) {
-        const defaultPet = await savePetUseCase.execute({
-          userId: user.id,
-          name: 'Max',
-          breed: 'Perro',
-          age: 3,
-        });
-        userPets = [defaultPet];
-      }
-
+      const userPets = await getPetsUseCase.execute(user.id);
       setPets(userPets);
+
+      if (userPets.length === 0) {
+        applyActivePet(null);
+        return;
+      }
 
       const savedActiveId = await AsyncStorage.getItem(ACTIVE_PET_KEY);
       const active =
@@ -87,7 +80,7 @@ export const ActivePetProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [getPetsUseCase, savePetUseCase, authService]);
+  }, [getPetsUseCase, authService]);
 
   const selectPet = useCallback(async (pet: Pet) => {
     if (isWalkInProgressRef.current) {

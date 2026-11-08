@@ -5,4 +5,7 @@ export interface IAuthService {
   login(email: string, password: string): Promise<User>;
   register(email: string, password: string): Promise<User>;
   logout(): Promise<void>;
+  updateProfile(name: string): Promise<User>;
+  requestPasswordReset(email: string): Promise<void>;
+  deleteAccount(): Promise<void>;
 }

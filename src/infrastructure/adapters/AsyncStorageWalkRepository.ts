@@ -28,7 +28,9 @@ export class AsyncStorageWalkRepository implements IWalkRepository {
   private toWalk(item: any): Walk {
     return new Walk({
       id: item.id,
-      petId: item.petId,
+      // `item.petId` es compatibilidad con paseos guardados antes de
+      // soportar varias mascotas por paseo.
+      petIds: item.petIds || (item.petId ? [item.petId] : []),
       startTime: new Date(item.startTime),
       endTime: item.endTime ? new Date(item.endTime) : undefined,
       route: (item.route || []).map((loc: any) => new Location(loc)),
@@ -41,7 +43,7 @@ export class AsyncStorageWalkRepository implements IWalkRepository {
     const index = all.findIndex((item) => item.id === walk.id);
     const serialized = {
       id: walk.id,
-      petId: walk.petId,
+      petIds: walk.petIds,
       startTime: walk.startTime,
       endTime: walk.endTime,
       route: walk.route,
@@ -70,7 +72,11 @@ export class AsyncStorageWalkRepository implements IWalkRepository {
 
   async findActiveByPetId(petId: string): Promise<Walk | null> {
     const all = await this.readAll();
-    const item = all.find((w) => w.petId === petId && !w.endTime);
+    const item = all.find(
+      (w) =>
+        !w.endTime &&
+        (w.petIds ? w.petIds.includes(petId) : w.petId === petId),
+    );
     return item ? this.toWalk(item) : null;
   }
 }

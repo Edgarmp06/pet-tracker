@@ -6,10 +6,12 @@ const mockMaybeSingle: jest.Mock<() => Promise<{ data: unknown; error: unknown }
 const chain: {
   eq: jest.Mock<(...args: any[]) => typeof chain>;
   is: jest.Mock<(...args: any[]) => typeof chain>;
+  contains: jest.Mock<(...args: any[]) => typeof chain>;
   maybeSingle: typeof mockMaybeSingle;
 } = {
   eq: jest.fn(() => chain),
   is: jest.fn(() => chain),
+  contains: jest.fn(() => chain),
   maybeSingle: mockMaybeSingle,
 };
 
@@ -46,7 +48,7 @@ describe('SupabaseWalkRepository', () => {
     mockMaybeSingle.mockResolvedValue({
       data: {
         id: 'walk-1',
-        pet_id: 'pet-1',
+        pet_ids: ['pet-1'],
         start_time: '2026-01-01T10:00:00.000Z',
         end_time: '2026-01-01T10:30:00.000Z',
         distance_meters: 1500,
@@ -87,7 +89,7 @@ describe('SupabaseWalkRepository', () => {
     const repository = new SupabaseWalkRepository();
     const walk = new Walk({
       id: 'walk-1',
-      petId: 'pet-1',
+      petIds: ['pet-1'],
       startTime: new Date('2026-01-01T10:00:00.000Z'),
       route: [new Location({ latitude: 0, longitude: 0 })],
     });
@@ -98,7 +100,7 @@ describe('SupabaseWalkRepository', () => {
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'walk-1',
-        pet_id: 'pet-1',
+        pet_ids: ['pet-1'],
         user_id: 'user-1',
       }),
     );
@@ -110,7 +112,7 @@ describe('SupabaseWalkRepository', () => {
     const repository = new SupabaseWalkRepository();
 
     await expect(
-      repository.save(new Walk({ id: 'walk-1', petId: 'pet-1', startTime: new Date(), route: [] })),
+      repository.save(new Walk({ id: 'walk-1', petIds: ['pet-1'], startTime: new Date(), route: [] })),
     ).rejects.toThrow(/sesión de Supabase activa/);
   });
 });

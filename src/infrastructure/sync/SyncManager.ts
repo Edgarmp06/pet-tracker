@@ -75,8 +75,11 @@ export class SyncManager {
     if (op.entity === 'pet' && this.remoteRepositories.pet) {
       if (op.type === 'upsert') {
         await this.remoteRepositories.pet.save(new Pet(op.payload as PetProps));
+      } else if (op.type === 'delete') {
+        await this.remoteRepositories.pet.delete(
+          (op.payload as { id: string }).id,
+        );
       }
-      // El borrado se añadirá cuando exista un caso de uso de eliminación.
       return true;
     }
 

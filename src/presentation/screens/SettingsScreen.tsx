@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -315,6 +316,13 @@ export const SettingsScreen: React.FC<Props> = ({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Banner de próxima fase */}
+          <View style={styles.comingSoonBanner}>
+            <Text style={styles.comingSoonText}>
+              Próximamente: Nuevas funciones y versión Pro en desarrollo 🚀
+            </Text>
+          </View>
+
           {/* Notificaciones y Recordatorios */}
           <Text style={styles.sectionTitle}>🔔 Notificaciones y Recordatorios</Text>
           <View style={styles.card}>
@@ -485,6 +493,17 @@ export const SettingsScreen: React.FC<Props> = ({
               <Text style={styles.dangerBtnText}>Eliminar cuenta</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Créditos */}
+          <TouchableOpacity
+            style={styles.creditsRow}
+            onPress={() => Linking.openURL('https://mmdevs.es')}
+          >
+            <Text style={styles.creditsText}>
+              Hecho con ❤️ por{' '}
+              <Text style={styles.creditsLink}>MMDevs — mmdevs.es</Text>
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
 
@@ -680,6 +699,31 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
     },
     dangerBtnText: { color: colors.danger, fontWeight: 'bold', fontSize: 13 },
+    comingSoonBanner: {
+      backgroundColor: colors.primaryMuted,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 8,
+    },
+    comingSoonText: {
+      color: colors.primary,
+      fontWeight: 'bold',
+      fontSize: 13,
+      textAlign: 'center',
+    },
+    creditsRow: {
+      marginTop: 24,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    creditsText: { fontSize: 12, color: colors.textMuted },
+    creditsLink: {
+      color: colors.primary,
+      fontWeight: 'bold',
+      textDecorationLine: 'underline',
+    },
     confirmOverlay: {
       flex: 1,
       backgroundColor: colors.overlay,

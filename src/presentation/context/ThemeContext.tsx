@@ -4,8 +4,9 @@ import React, {
   useEffect,
   useState,
 } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as NavigationBar from 'expo-navigation-bar';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
@@ -97,6 +98,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   const theme: ResolvedTheme =
     preference === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : preference;
   const colors = theme === 'dark' ? DARK_COLORS : LIGHT_COLORS;
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    // Desde que Android exige edge-to-edge (y expo-navigation-bar lo refleja
+    // quitando el control manual de color de fondo), solo podemos pedir el
+    // estilo de la barra ("dark" = fondo oscuro + iconos claros), no un color
+    // exacto; el sistema compone la barra transparente sobre nuestro fondo.
+    NavigationBar.setStyle(theme === 'dark' ? 'dark' : 'light');
+  }, [theme]);
 
   return (
     <ThemeContext.Provider

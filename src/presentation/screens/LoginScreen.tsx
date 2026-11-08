@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '../../domain/entities/User';
 import { useDependencies } from '../context/DependencyContext';
 
@@ -47,6 +48,35 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleResetLocalStorage = () => {
+    Alert.alert(
+      'Reiniciar almacenamiento local',
+      'Esto borrará todos los datos guardados en este dispositivo (sesión, mascotas, historial, preferencias). Útil para limpiar sesiones de prueba antiguas. ¿Continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Borrar todo',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.clear();
+              Alert.alert(
+                'Almacenamiento reiniciado',
+                'Los datos locales se han borrado correctamente.',
+              );
+            } catch (error) {
+              console.error('No se pudo reiniciar el almacenamiento local:', error);
+              Alert.alert(
+                'No se pudo reiniciar',
+                'Ocurrió un problema al borrar los datos locales. Inténtalo de nuevo.',
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -98,6 +128,15 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
           {mode === 'login'
             ? '¿No tienes cuenta? Crea una'
             : '¿Ya tienes cuenta? Inicia sesión'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.resetStorageBtn}
+        onPress={handleResetLocalStorage}
+      >
+        <Text style={styles.resetStorageText}>
+          🔄 Reiniciar almacenamiento local
         </Text>
       </TouchableOpacity>
     </View>
@@ -158,5 +197,13 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontSize: 13,
     fontWeight: '600',
+  },
+  resetStorageBtn: {
+    marginTop: 28,
+  },
+  resetStorageText: {
+    color: '#999',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

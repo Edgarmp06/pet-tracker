@@ -28,7 +28,7 @@ import { DailyReminderTime } from '../../domain/ports/INotificationService';
 const WALK_REMINDER_ENABLED_KEY = '@pet_tracker_walk_reminder_enabled';
 const WALK_REMINDER_TIME_KEY = '@pet_tracker_walk_reminder_time';
 const DEFAULT_REMINDER_TIME: DailyReminderTime = { hour: 20, minute: 0 };
-const MINUTE_STEP = 15;
+const MINUTE_STEP = 1;
 
 interface Props {
   visible: boolean;

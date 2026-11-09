@@ -66,6 +66,27 @@ export class ExpoNotificationAdapter implements INotificationService {
     });
   }
 
+  async scheduleOneTimeReminder(
+    identifier: string,
+    date: Date,
+    title: string,
+    body: string,
+  ): Promise<void> {
+    const hasPermission = await this.requestPermissions();
+    if (!hasPermission) return;
+
+    await this.cancelReminder(identifier);
+
+    await scheduleNotificationAsync({
+      identifier,
+      content: { title, body },
+      trigger: {
+        type: SchedulableTriggerInputTypes.DATE,
+        date,
+      },
+    });
+  }
+
   async cancelReminder(identifier: string): Promise<void> {
     try {
       await cancelScheduledNotificationAsync(identifier);

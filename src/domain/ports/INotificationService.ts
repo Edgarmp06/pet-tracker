@@ -21,5 +21,17 @@ export interface INotificationService {
     body: string,
   ): Promise<void>;
 
+  /**
+   * Programa un recordatorio puntual (una sola vez) para una fecha concreta,
+   * p.ej. la próxima dosis de una medicina. `identifier` permite
+   * reprogramarlo o cancelarlo igual que `scheduleDailyReminder`.
+   */
+  scheduleOneTimeReminder(
+    identifier: string,
+    date: Date,
+    title: string,
+    body: string,
+  ): Promise<void>;
+
   cancelReminder(identifier: string): Promise<void>;
 }

@@ -28,6 +28,7 @@ class FakeNotificationService implements INotificationService {
   }
 
   async scheduleDailyReminder(): Promise<void> {}
+  async scheduleOneTimeReminder(): Promise<void> {}
   async cancelReminder(): Promise<void> {}
 }
 

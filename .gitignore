@@ -43,3 +43,6 @@ coverage/
 # generated native folders
 /ios
 /android
+
+# herramientas de depuración descargadas (adb), no son parte del proyecto
+/platform-tools

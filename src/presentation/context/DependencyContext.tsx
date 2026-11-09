@@ -35,6 +35,7 @@ import { GetActiveWalkUseCase } from '../../application/use-cases/GetActiveWalkU
 import { CheckIntestinalHealthAlertUseCase } from '../../application/use-cases/CheckIntestinalHealthAlertUseCase';
 import { ScheduleWalkReminderUseCase } from '../../application/use-cases/ScheduleWalkReminderUseCase';
 import { CancelWalkReminderUseCase } from '../../application/use-cases/CancelWalkReminderUseCase';
+import { ScheduleMedicationReminderUseCase } from '../../application/use-cases/ScheduleMedicationReminderUseCase';
 import { GetPetDroppingLocationsUseCase } from '../../application/use-cases/GetPetDroppingLocationsUseCase';
 import { GetClinicalMetricsUseCase } from '../../application/use-cases/GetClinicalMetricsUseCase';
 import {
@@ -141,6 +142,9 @@ const requestPasswordResetUseCase = new RequestPasswordResetUseCase(
 const deleteAccountUseCase = new DeleteAccountUseCase(authService);
 const recordPetEventUseCase = new RecordPetEventUseCase(petEventRepository);
 const getPetEventsUseCase = new GetPetEventsUseCase(petEventRepository);
+const scheduleMedicationReminderUseCase = new ScheduleMedicationReminderUseCase(
+  notificationService,
+);
 
 interface DependencyContextType {
   droppingRepository: IDroppingRepository;
@@ -162,6 +166,7 @@ interface DependencyContextType {
   deleteAccountUseCase: DeleteAccountUseCase;
   recordPetEventUseCase: RecordPetEventUseCase;
   getPetEventsUseCase: GetPetEventsUseCase;
+  scheduleMedicationReminderUseCase: ScheduleMedicationReminderUseCase;
   authService: IAuthService;
   gpsService: IGpsService;
   imagePickerAdapter: IImagePickerService;
@@ -195,6 +200,7 @@ export const DependencyProvider: React.FC<{ children: React.ReactNode }> = ({
         deleteAccountUseCase,
         recordPetEventUseCase,
         getPetEventsUseCase,
+        scheduleMedicationReminderUseCase,
         authService,
         gpsService,
         imagePickerAdapter,

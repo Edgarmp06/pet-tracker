@@ -33,6 +33,10 @@ export class AsyncStoragePetEventRepository implements IPetEventRepository {
       type: item.type,
       timestamp: new Date(item.timestamp),
       notes: item.notes,
+      foodAmount: item.foodAmount,
+      medicineName: item.medicineName,
+      dose: item.dose,
+      nextDoseAt: item.nextDoseAt ? new Date(item.nextDoseAt) : undefined,
     });
   }
 

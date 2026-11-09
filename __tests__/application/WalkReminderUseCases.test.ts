@@ -33,6 +33,8 @@ class FakeNotificationService implements INotificationService {
     this.scheduled.push({ identifier, time, title, body });
   }
 
+  async scheduleOneTimeReminder(): Promise<void> {}
+
   async cancelReminder(identifier: string): Promise<void> {
     this.cancelled.push(identifier);
   }

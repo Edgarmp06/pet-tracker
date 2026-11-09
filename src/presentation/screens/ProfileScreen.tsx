@@ -25,7 +25,11 @@ import {
   DroppingFormModal,
   DroppingFormValues,
 } from '../components/DroppingFormModal';
-import { PetEventFormModal } from '../components/PetEventFormModal';
+import {
+  PetEventFormModal,
+  PetEventFormValues,
+} from '../components/PetEventFormModal';
+import { PetHistoryModal } from '../components/PetHistoryModal';
 import { PetEventType } from '../../domain/entities/PetEvent';
 import { SettingsScreen } from './SettingsScreen';
 import { ThemeColors, useTheme } from '../context/ThemeContext';
@@ -50,6 +54,8 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
     imagePickerAdapter,
     getClinicalMetricsUseCase,
     recordPetEventUseCase,
+    getPetEventsUseCase,
+    scheduleMedicationReminderUseCase,
   } = useDependencies();
   const {
     pets,
@@ -77,6 +83,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   const [petEventModalType, setPetEventModalType] =
     useState<PetEventType | null>(null);
   const [isSavingPetEvent, setIsSavingPetEvent] = useState(false);
+  const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
 
   const loadHistory = async (petId: string) => {
     setIsLoadingHistory(true);
@@ -261,21 +268,43 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
     }
   };
 
-  const handleSavePetEvent = async (notes?: string) => {
+  const handleSavePetEvent = async (values: PetEventFormValues) => {
     if (!selectedPet || !petEventModalType) return;
 
     setIsSavingPetEvent(true);
     try {
-      await recordPetEventUseCase.execute({
+      const nextDoseAt = values.reminderInMs
+        ? new Date(Date.now() + values.reminderInMs)
+        : undefined;
+
+      const event = await recordPetEventUseCase.execute({
         petId: selectedPet.id,
         type: petEventModalType,
-        notes,
+        notes: values.notes,
+        foodAmount: values.foodAmount,
+        medicineName: values.medicineName,
+        dose: values.dose,
+        nextDoseAt,
       });
+
+      if (nextDoseAt && values.medicineName) {
+        await scheduleMedicationReminderUseCase.execute(
+          event.id,
+          selectedPet.name,
+          values.medicineName,
+          nextDoseAt,
+        );
+      }
 
       const typeLabel =
         petEventModalType === 'feeding' ? 'Alimentación' : 'Medicamento';
       setPetEventModalType(null);
-      Alert.alert('¡Registrado!', `${typeLabel} guardado con éxito.`);
+      Alert.alert(
+        '¡Registrado!',
+        nextDoseAt
+          ? `${typeLabel} guardado con éxito. Te avisaremos para la próxima dosis.`
+          : `${typeLabel} guardado con éxito.`,
+      );
     } catch (error) {
       console.error('Error al registrar el evento:', error);
       Alert.alert(
@@ -525,7 +554,10 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
           {/* Tarjeta de la Mascota Seleccionada */}
           {selectedPet && (
             <View style={styles.profileCard}>
-              <View style={styles.avatarWrapper}>
+              <TouchableOpacity
+                style={styles.avatarWrapper}
+                onPress={() => setIsHistoryModalVisible(true)}
+              >
                 {selectedPet.avatarUri ? (
                   <Image
                     source={{ uri: selectedPet.avatarUri }}
@@ -534,7 +566,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
                 ) : (
                   <Text style={styles.avatarEmoji}>🐶</Text>
                 )}
-              </View>
+              </TouchableOpacity>
               <View style={styles.profileInfo}>
                 <Text style={styles.petName}>{selectedPet.name}</Text>
                 <Text style={styles.petSubText}>
@@ -729,20 +761,21 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
 
       <PetEventFormModal
         visible={petEventModalType !== null}
-        title={
-          petEventModalType === 'feeding'
-            ? '🍖 Registrar Alimentación'
-            : '💊 Registrar Medicamento'
-        }
-        notesPlaceholder={
-          petEventModalType === 'feeding'
-            ? 'Notas (ej. ración, hora)'
-            : 'Notas (ej. nombre del medicamento, dosis)'
-        }
+        type={petEventModalType}
         isSubmitting={isSavingPetEvent}
         onClose={() => setPetEventModalType(null)}
         onSubmit={handleSavePetEvent}
       />
+
+      {selectedPet && (
+        <PetHistoryModal
+          visible={isHistoryModalVisible}
+          pet={selectedPet}
+          getPetEventsUseCase={getPetEventsUseCase}
+          droppingRepository={droppingRepository}
+          onClose={() => setIsHistoryModalVisible(false)}
+        />
+      )}
 
       <SettingsScreen
         visible={isSettingsVisible}

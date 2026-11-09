@@ -5,6 +5,10 @@ export interface RecordPetEventDTO {
   petId: string;
   type: PetEventType;
   notes?: string;
+  foodAmount?: string;
+  medicineName?: string;
+  dose?: string;
+  nextDoseAt?: Date;
 }
 
 export class RecordPetEventUseCase {
@@ -17,6 +21,10 @@ export class RecordPetEventUseCase {
       type: dto.type,
       timestamp: new Date(),
       notes: dto.notes,
+      foodAmount: dto.foodAmount,
+      medicineName: dto.medicineName,
+      dose: dto.dose,
+      nextDoseAt: dto.nextDoseAt,
     });
 
     await this.petEventRepository.save(event);

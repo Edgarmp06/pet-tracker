@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '../../domain/entities/User';
 import { useDependencies } from '../context/DependencyContext';
@@ -114,7 +114,12 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>🐾 PetTracker</Text>
+      <Image
+        source={require('../../../assets/icon.png')}
+        style={styles.logoImage}
+        resizeMode="contain"
+      />
+      <Text style={styles.appName}>PetTracker</Text>
       <Text style={styles.subtitle}>
         {mode === 'login'
           ? 'Inicia sesión para gestionar tus mascotas'
@@ -201,10 +206,16 @@ const createStyles = (colors: ThemeColors) =>
       padding: 24,
       backgroundColor: colors.background,
     },
-    logo: {
-      fontSize: 32,
+    logoImage: {
+      width: 88,
+      height: 88,
+      borderRadius: 20,
+      marginBottom: 12,
+    },
+    appName: {
+      fontSize: 26,
       fontWeight: 'bold',
-      color: colors.primary,
+      color: colors.text,
       marginBottom: 8,
     },
     subtitle: {

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors, useTheme } from '../context/ThemeContext';
 
 interface Props {
@@ -13,7 +14,7 @@ export const EmptyPetsState: React.FC<Props> = ({ onAddPet }) => {
   return (
     <View style={styles.container}>
       <View style={styles.illustrationCircle}>
-        <Text style={styles.illustrationEmoji}>🐾</Text>
+        <Ionicons name="paw" size={40} color={colors.primary} />
       </View>
       <Text style={styles.title}>Añade a tu mascota para comenzar</Text>
       <Text style={styles.subtitle}>
@@ -22,7 +23,8 @@ export const EmptyPetsState: React.FC<Props> = ({ onAddPet }) => {
       </Text>
 
       <TouchableOpacity style={styles.primaryBtn} onPress={onAddPet}>
-        <Text style={styles.primaryBtnText}>🐶 Añadir mi primera mascota</Text>
+        <Ionicons name="add-circle-outline" size={18} color={colors.white} />
+        <Text style={styles.primaryBtnText}>Añadir mi primera mascota</Text>
       </TouchableOpacity>
     </View>
   );
@@ -45,7 +47,6 @@ const createStyles = (colors: ThemeColors) =>
       justifyContent: 'center',
       marginBottom: 20,
     },
-    illustrationEmoji: { fontSize: 44 },
     title: {
       fontSize: 18,
       fontWeight: 'bold',
@@ -61,6 +62,9 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: 18,
     },
     primaryBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
       backgroundColor: colors.primary,
       paddingVertical: 14,
       paddingHorizontal: 28,

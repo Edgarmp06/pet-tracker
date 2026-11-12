@@ -10,6 +10,12 @@ export interface PetProps {
   avatarUri?: string;
   species?: PetSpecies;
   gender?: PetGender;
+  /**
+   * Si la mascota sale de paseo. Por defecto `true` (perros y "otro" siempre
+   * pasean); en gatos se pregunta explícitamente al crear el perfil, porque
+   * muchos no salen nunca y no tiene sentido ofrecerles el flujo de paseo.
+   */
+  goesOnWalks?: boolean;
 }
 
 export class Pet {
@@ -21,6 +27,7 @@ export class Pet {
   readonly avatarUri?: string;
   readonly species?: PetSpecies;
   readonly gender?: PetGender;
+  readonly goesOnWalks: boolean;
 
   constructor(props: PetProps) {
     this.id = props.id;
@@ -31,5 +38,6 @@ export class Pet {
     this.avatarUri = props.avatarUri;
     this.species = props.species;
     this.gender = props.gender;
+    this.goesOnWalks = props.goesOnWalks ?? true;
   }
 }

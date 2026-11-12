@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = '@pet_tracker_sync_queue';
 
-export type SyncEntity = 'pet' | 'dropping' | 'walk';
+export type SyncEntity = 'pet' | 'dropping' | 'walk' | 'weight';
 export type SyncOperationType = 'upsert' | 'delete';
 
 export interface QueuedOperation<T = unknown> {

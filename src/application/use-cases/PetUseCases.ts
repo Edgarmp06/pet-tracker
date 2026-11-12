@@ -17,6 +17,7 @@ export interface CreatePetDTO {
   avatarUri?: string;
   species?: PetSpecies;
   gender?: PetGender;
+  goesOnWalks?: boolean;
 }
 
 export class SavePetUseCase {
@@ -32,6 +33,7 @@ export class SavePetUseCase {
       avatarUri: dto.avatarUri,
       species: dto.species,
       gender: dto.gender,
+      goesOnWalks: dto.goesOnWalks,
     });
 
     await this.petRepository.save(pet);
@@ -48,6 +50,7 @@ export interface UpdatePetDTO {
   avatarUri?: string;
   species?: PetSpecies;
   gender?: PetGender;
+  goesOnWalks?: boolean;
 }
 
 export class UpdatePetUseCase {

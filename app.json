@@ -13,7 +13,8 @@
     },
     "android": {
       "package": "es.mmdevs.pettracker",
-      "versionCode": 7,
+      "versionCode": 13,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

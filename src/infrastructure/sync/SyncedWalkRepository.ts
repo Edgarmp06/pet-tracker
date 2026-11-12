@@ -32,6 +32,10 @@ export class SyncedWalkRepository implements IWalkRepository {
     return this.local.findActiveByPetId(petId);
   }
 
+  async findCompletedByPetId(petId: string): Promise<Walk[]> {
+    return this.local.findCompletedByPetId(petId);
+  }
+
   async save(walk: Walk): Promise<void> {
     await this.local.save(walk);
 

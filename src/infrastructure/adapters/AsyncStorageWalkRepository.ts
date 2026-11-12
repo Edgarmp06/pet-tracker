@@ -79,4 +79,15 @@ export class AsyncStorageWalkRepository implements IWalkRepository {
     );
     return item ? this.toWalk(item) : null;
   }
+
+  async findCompletedByPetId(petId: string): Promise<Walk[]> {
+    const all = await this.readAll();
+    return all
+      .filter(
+        (w) =>
+          !!w.endTime &&
+          (w.petIds ? w.petIds.includes(petId) : w.petId === petId),
+      )
+      .map((item) => this.toWalk(item));
+  }
 }

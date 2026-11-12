@@ -1,5 +1,17 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, Image } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '../../domain/entities/User';
 import { useDependencies } from '../context/DependencyContext';
@@ -18,6 +30,7 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
 
@@ -113,94 +126,119 @@ export const LoginScreen: React.FC<Props> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <Image
-        source={require('../../../assets/icon.png')}
-        style={styles.logoImage}
-        resizeMode="contain"
-      />
-      <Text style={styles.appName}>PetTracker</Text>
-      <Text style={styles.subtitle}>
-        {mode === 'login'
-          ? 'Inicia sesión para gestionar tus mascotas'
-          : 'Crea una cuenta para empezar'}
-      </Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Correo electrónico"
-        placeholderTextColor={colors.textMuted}
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña (mín. 6 caracteres)"
-        placeholderTextColor={colors.textMuted}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoCapitalize="none"
-      />
-
-      <TouchableOpacity
-        style={[styles.loginBtn, isSubmitting && styles.loginBtnDisabled]}
-        onPress={handleSubmit}
-        disabled={isSubmitting}
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.loginBtnText}>
-          {isSubmitting
-            ? 'Un momento...'
-            : mode === 'login'
-              ? 'Entrar'
-              : 'Crear cuenta'}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.switchModeBtn}
-        onPress={() => setMode(mode === 'login' ? 'register' : 'login')}
-      >
-        <Text style={styles.switchModeText}>
+        <Image
+          source={require('../../../assets/icon.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
+        <Text style={styles.appName}>PetTracker</Text>
+        <Text style={styles.subtitle}>
           {mode === 'login'
-            ? '¿No tienes cuenta? Crea una'
-            : '¿Ya tienes cuenta? Inicia sesión'}
+            ? 'Inicia sesión para gestionar tus mascotas'
+            : 'Crea una cuenta para empezar'}
         </Text>
-      </TouchableOpacity>
 
-      {mode === 'login' && (
+        <TextInput
+          style={styles.input}
+          placeholder="Correo electrónico"
+          placeholderTextColor={colors.textMuted}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+
+        <View style={styles.passwordWrapper}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Contraseña (mín. 6 caracteres)"
+            placeholderTextColor={colors.textMuted}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!isPasswordVisible}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setIsPasswordVisible((prev) => !prev)}
+          >
+            <Ionicons
+              name={isPasswordVisible ? 'eye-off' : 'eye'}
+              size={22}
+              color={colors.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
-          style={styles.forgotPasswordBtn}
-          onPress={handleForgotPassword}
-          disabled={isSendingReset}
+          style={[styles.loginBtn, isSubmitting && styles.loginBtnDisabled]}
+          onPress={handleSubmit}
+          disabled={isSubmitting}
         >
-          <Text style={styles.forgotPasswordText}>
-            {isSendingReset
-              ? 'Enviando...'
-              : '¿Has olvidado tu contraseña?'}
+          <Text style={styles.loginBtnText}>
+            {isSubmitting
+              ? 'Un momento...'
+              : mode === 'login'
+                ? 'Entrar'
+                : 'Crear cuenta'}
           </Text>
         </TouchableOpacity>
-      )}
 
-      <TouchableOpacity
-        style={styles.resetStorageBtn}
-        onPress={handleResetLocalStorage}
-      >
-        <Text style={styles.resetStorageText}>
-          🔄 Reiniciar almacenamiento local
-        </Text>
-      </TouchableOpacity>
-    </View>
+        <TouchableOpacity
+          style={styles.switchModeBtn}
+          onPress={() => setMode(mode === 'login' ? 'register' : 'login')}
+        >
+          <Text style={styles.switchModeText}>
+            {mode === 'login'
+              ? '¿No tienes cuenta? Crea una'
+              : '¿Ya tienes cuenta? Inicia sesión'}
+          </Text>
+        </TouchableOpacity>
+
+        {mode === 'login' && (
+          <TouchableOpacity
+            style={styles.forgotPasswordBtn}
+            onPress={handleForgotPassword}
+            disabled={isSendingReset}
+          >
+            <Text style={styles.forgotPasswordText}>
+              {isSendingReset
+                ? 'Enviando...'
+                : '¿Has olvidado tu contraseña?'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={styles.resetStorageBtn}
+          onPress={handleResetLocalStorage}
+        >
+          <Ionicons name="refresh-outline" size={13} color={colors.textMuted} />
+          <Text style={styles.resetStorageText}>
+            Reiniciar almacenamiento local
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    container: {
+    flex: {
       flex: 1,
+      backgroundColor: colors.background,
+    },
+    container: {
+      flexGrow: 1,
       justifyContent: 'center',
       alignItems: 'center',
       padding: 24,
@@ -236,6 +274,27 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 16,
       color: colors.text,
     },
+    passwordWrapper: {
+      width: '100%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 20,
+    },
+    passwordInput: {
+      flex: 1,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: colors.text,
+    },
+    eyeButton: {
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
     loginBtn: {
       width: '100%',
       backgroundColor: colors.primary,
@@ -270,6 +329,9 @@ const createStyles = (colors: ThemeColors) =>
     },
     resetStorageBtn: {
       marginTop: 28,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
     },
     resetStorageText: {
       color: colors.textMuted,

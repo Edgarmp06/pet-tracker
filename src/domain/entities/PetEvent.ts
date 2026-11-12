@@ -12,7 +12,7 @@ export interface PetEventProps {
   medicineName?: string;
   /** Solo 'medication': dosis administrada (ej. "1 comprimido"). */
   dose?: string;
-  /** Solo 'medication': cuándo toca la siguiente dosis, si se programó recordatorio. */
+  /** Cuándo toca el próximo evento (siguiente dosis o siguiente comida), si se programó recordatorio. */
   nextDoseAt?: Date;
 }
 

@@ -22,6 +22,10 @@ class InMemoryWalkRepository implements IWalkRepository {
   async findActiveByPetId(petId: string): Promise<Walk | null> {
     return this.walks.find((w) => w.petIds.includes(petId) && !w.endTime) || null;
   }
+
+  async findCompletedByPetId(petId: string): Promise<Walk[]> {
+    return this.walks.filter((w) => w.petIds.includes(petId) && !!w.endTime);
+  }
 }
 
 describe('GetActiveWalkUseCase', () => {

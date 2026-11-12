@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDependencies } from '../context/DependencyContext';
 import { useActivePet } from '../context/ActivePetContext';
@@ -29,6 +30,21 @@ const WALK_REMINDER_ENABLED_KEY = '@pet_tracker_walk_reminder_enabled';
 const WALK_REMINDER_TIME_KEY = '@pet_tracker_walk_reminder_time';
 const DEFAULT_REMINDER_TIME: DailyReminderTime = { hour: 20, minute: 0 };
 const MINUTE_STEP = 1;
+
+const SectionTitle: React.FC<{
+  icon: keyof typeof Ionicons.glyphMap;
+  children: string;
+}> = ({ icon, children }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18, marginBottom: 8 }}>
+      <Ionicons name={icon} size={14} color={colors.textMuted} />
+      <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.textMuted }}>
+        {children}
+      </Text>
+    </View>
+  );
+};
 
 interface Props {
   visible: boolean;
@@ -306,7 +322,10 @@ export const SettingsScreen: React.FC<Props> = ({
     <Modal visible={visible} animationType="slide">
       <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>⚙️ Ajustes</Text>
+          <View style={styles.headerTitleRow}>
+            <Ionicons name="settings-outline" size={20} color={colors.text} />
+            <Text style={styles.headerTitle}>Ajustes</Text>
+          </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <Text style={styles.closeBtnText}>Cerrar</Text>
           </TouchableOpacity>
@@ -324,7 +343,7 @@ export const SettingsScreen: React.FC<Props> = ({
           </View>
 
           {/* Notificaciones y Recordatorios */}
-          <Text style={styles.sectionTitle}>🔔 Notificaciones y Recordatorios</Text>
+          <SectionTitle icon="notifications-outline">Notificaciones y Recordatorios</SectionTitle>
           <View style={styles.card}>
             <View style={styles.row}>
               <Text style={styles.rowLabel}>Recordatorio diario de paseo</Text>
@@ -381,7 +400,7 @@ export const SettingsScreen: React.FC<Props> = ({
           </View>
 
           {/* Perfil de Usuario */}
-          <Text style={styles.sectionTitle}>👤 Perfil de Usuario</Text>
+          <SectionTitle icon="person-outline">Perfil de Usuario</SectionTitle>
           <View style={styles.card}>
             <Text style={styles.rowLabel}>{currentUser?.email}</Text>
             <TextInput
@@ -403,7 +422,7 @@ export const SettingsScreen: React.FC<Props> = ({
           </View>
 
           {/* Gestión de Mascotas */}
-          <Text style={styles.sectionTitle}>🐾 Gestión de Mascotas</Text>
+          <SectionTitle icon="paw-outline">Gestión de Mascotas</SectionTitle>
           <View style={styles.card}>
             {pets.length === 0 ? (
               <Text style={styles.emptyText}>Todavía no tienes mascotas.</Text>
@@ -437,16 +456,20 @@ export const SettingsScreen: React.FC<Props> = ({
           </View>
 
           {/* Accesibilidad */}
-          <Text style={styles.sectionTitle}>♿ Accesibilidad</Text>
+          <SectionTitle icon="accessibility-outline">Accesibilidad</SectionTitle>
           <View style={styles.card}>
             <Text style={styles.rowLabel}>Tema</Text>
             <View style={styles.themeRow}>
               {(
                 [
-                  { key: 'light', label: '☀️ Claro' },
-                  { key: 'dark', label: '🌙 Oscuro' },
-                  { key: 'system', label: '📱 Sistema' },
-                ] as { key: ThemePreference; label: string }[]
+                  { key: 'light', label: 'Claro', icon: 'sunny-outline' },
+                  { key: 'dark', label: 'Oscuro', icon: 'moon-outline' },
+                  { key: 'system', label: 'Sistema', icon: 'phone-portrait-outline' },
+                ] as {
+                  key: ThemePreference;
+                  label: string;
+                  icon: keyof typeof Ionicons.glyphMap;
+                }[]
               ).map((option) => {
                 const isSelected = themePreference === option.key;
                 return (
@@ -455,6 +478,11 @@ export const SettingsScreen: React.FC<Props> = ({
                     style={[styles.themeChip, isSelected && styles.themeChipSelected]}
                     onPress={() => setPreference(option.key)}
                   >
+                    <Ionicons
+                      name={option.icon}
+                      size={13}
+                      color={isSelected ? colors.primary : colors.textMuted}
+                    />
                     <Text
                       style={[
                         styles.themeChipText,
@@ -474,10 +502,11 @@ export const SettingsScreen: React.FC<Props> = ({
           </View>
 
           {/* Cuenta y Sesión */}
-          <Text style={styles.sectionTitle}>🔐 Cuenta y Sesión</Text>
+          <SectionTitle icon="lock-closed-outline">Cuenta y Sesión</SectionTitle>
           <View style={styles.card}>
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-              <Text style={styles.logoutText}>🚪 Cerrar Sesión</Text>
+              <Ionicons name="log-out-outline" size={16} color={colors.danger} />
+              <Text style={styles.logoutText}>Cerrar Sesión</Text>
             </TouchableOpacity>
           </View>
 
@@ -522,6 +551,7 @@ export const SettingsScreen: React.FC<Props> = ({
                 avatarUri: editingPet.avatarUri,
                 species: editingPet.species,
                 gender: editingPet.gender,
+                goesOnWalks: editingPet.goesOnWalks,
               }
             : undefined
         }
@@ -578,6 +608,7 @@ const createStyles = (colors: ThemeColors) =>
       paddingHorizontal: 20,
       marginBottom: 10,
     },
+    headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     headerTitle: { fontSize: 20, fontWeight: 'bold', color: colors.text },
     closeBtn: { padding: 6 },
     closeBtnText: { color: colors.primary, fontWeight: 'bold', fontSize: 14 },
@@ -666,6 +697,9 @@ const createStyles = (colors: ThemeColors) =>
     petActionTextDanger: { color: colors.danger, fontWeight: '600', fontSize: 13 },
     themeRow: { flexDirection: 'row', marginTop: 8, marginBottom: 10 },
     themeChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 12,
@@ -678,9 +712,12 @@ const createStyles = (colors: ThemeColors) =>
     themeChipTextSelected: { color: colors.primary },
     hintText: { fontSize: 11, color: colors.textMuted, lineHeight: 16, marginTop: 10 },
     logoutBtn: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 6,
       paddingVertical: 12,
       borderRadius: 10,
-      alignItems: 'center',
     },
     logoutText: { color: colors.danger, fontWeight: 'bold', fontSize: 14 },
     dangerCard: {

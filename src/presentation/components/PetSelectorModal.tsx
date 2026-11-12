@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Pet } from '../../domain/entities/Pet';
 import { ThemeColors, useTheme } from '../context/ThemeContext';
 
@@ -7,7 +8,7 @@ interface Props {
   visible: boolean;
   title: string;
   pets: Pet[];
-  /** Selección múltiple (checkboxes + botón confirmar) o única (al pulsar confirma al instante). */
+  /** Selección múltiple (varias mascotas a la vez) o única (como mucho una). Ambas requieren confirmar con el botón. */
   multiSelect: boolean;
   initialSelectedIds?: string[];
   confirmLabel?: string;
@@ -31,13 +32,15 @@ export const PetSelectorModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (!visible) return;
-    setSelectedIds(initialSelectedIds || (pets[0] ? [pets[0].id] : []));
+    // Sin preselección por defecto: el usuario debe elegir explícitamente,
+    // igual que en el selector de "¿con qué mascotas vas a pasear?".
+    setSelectedIds(initialSelectedIds || []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const handleTogglePet = (pet: Pet) => {
     if (!multiSelect) {
-      onConfirm([pet]);
+      setSelectedIds([pet.id]);
       return;
     }
 
@@ -67,7 +70,13 @@ export const PetSelectorModal: React.FC<Props> = ({
                 style={[styles.petRow, isSelected && styles.petRowSelected]}
                 onPress={() => handleTogglePet(pet)}
               >
-                <Text style={styles.petEmoji}>🐶</Text>
+                {pet.avatarUri ? (
+                  <Image source={{ uri: pet.avatarUri }} style={styles.petAvatar} />
+                ) : (
+                  <View style={styles.petAvatarPlaceholder}>
+                    <Ionicons name="paw" size={14} color={colors.textMuted} />
+                  </View>
+                )}
                 <Text
                   style={[
                     styles.petName,
@@ -76,11 +85,11 @@ export const PetSelectorModal: React.FC<Props> = ({
                 >
                   {pet.name}
                 </Text>
-                {multiSelect && (
-                  <Text style={styles.checkbox}>
-                    {isSelected ? '✅' : '⬜️'}
-                  </Text>
-                )}
+                <Ionicons
+                  name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={20}
+                  color={isSelected ? colors.primary : colors.textMuted}
+                />
               </TouchableOpacity>
             );
           })}
@@ -89,18 +98,16 @@ export const PetSelectorModal: React.FC<Props> = ({
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
               <Text style={styles.cancelText}>Cancelar</Text>
             </TouchableOpacity>
-            {multiSelect && (
-              <TouchableOpacity
-                style={[
-                  styles.confirmBtn,
-                  selectedIds.length === 0 && styles.confirmBtnDisabled,
-                ]}
-                onPress={handleConfirm}
-                disabled={selectedIds.length === 0}
-              >
-                <Text style={styles.confirmText}>{confirmLabel}</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={[
+                styles.confirmBtn,
+                selectedIds.length === 0 && styles.confirmBtnDisabled,
+              ]}
+              onPress={handleConfirm}
+              disabled={selectedIds.length === 0}
+            >
+              <Text style={styles.confirmText}>{confirmLabel}</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -142,10 +149,18 @@ const createStyles = (colors: ThemeColors) =>
       marginBottom: 10,
     },
     petRowSelected: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
-    petEmoji: { fontSize: 20, marginRight: 10 },
+    petAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 10 },
+    petAvatarPlaceholder: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      marginRight: 10,
+      backgroundColor: colors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     petName: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
     petNameSelected: { color: colors.primary },
-    checkbox: { fontSize: 16 },
     buttons: {
       flexDirection: 'row',
       justifyContent: 'space-between',

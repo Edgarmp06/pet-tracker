@@ -3,6 +3,7 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
@@ -11,17 +12,34 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { WalkScreen } from './src/presentation/screens/WalkScreen';
 import { ProfileScreen } from './src/presentation/screens/ProfileScreen';
+import { PetEventScreen } from './src/presentation/screens/PetEventScreen';
 import { LoginScreen } from './src/presentation/screens/LoginScreen';
+import { ProfileStackParamList } from './src/presentation/navigation/ProfileStackParamList';
 import { DependencyProvider, authService } from './src/presentation/context/DependencyContext';
 import { ActivePetProvider } from './src/presentation/context/ActivePetContext';
 import { ThemeProvider, useTheme } from './src/presentation/context/ThemeContext';
 import { User } from './src/domain/entities/User';
 
 const Tab = createBottomTabNavigator();
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 interface MainNavigatorProps {
   onLogout: () => void;
 }
+
+// Pila anidada dentro de la pestaña Perfil: permite abrir el registro de
+// comida/medicina como una pantalla propia (con su propio header y botón de
+// volver) en vez de un modal, sin tocar la navegación por pestañas de abajo.
+const ProfileStackNavigator: React.FC<{ onLogout: () => void }> = ({
+  onLogout,
+}) => (
+  <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+    <ProfileStack.Screen name="ProfileHome">
+      {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
+    </ProfileStack.Screen>
+    <ProfileStack.Screen name="PetEvent" component={PetEventScreen} />
+  </ProfileStack.Navigator>
+);
 
 const MainNavigator: React.FC<MainNavigatorProps> = ({ onLogout }) => {
   const insets = useSafeAreaInsets();
@@ -62,7 +80,7 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({ onLogout }) => {
         })}
       >
         <Tab.Screen name="Profile" options={{ tabBarLabel: 'Perfil' }}>
-          {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
+          {() => <ProfileStackNavigator onLogout={onLogout} />}
         </Tab.Screen>
         <Tab.Screen
           name="Walk"

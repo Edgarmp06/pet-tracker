@@ -3,11 +3,13 @@ import { AsyncStorageDroppingRepository } from '../../infrastructure/adapters/As
 import { AsyncStoragePetRepository } from '../../infrastructure/adapters/AsyncStoragePetRepository';
 import { AsyncStorageWalkRepository } from '../../infrastructure/adapters/AsyncStorageWalkRepository';
 import { AsyncStoragePetEventRepository } from '../../infrastructure/adapters/AsyncStoragePetEventRepository';
+import { AsyncStorageWeightRepository } from '../../infrastructure/adapters/AsyncStorageWeightRepository';
 import { MockAuthAdapter } from '../../infrastructure/adapters/MockAuthAdapter';
 import { SupabaseAuthAdapter } from '../../infrastructure/adapters/SupabaseAuthAdapter';
 import { SupabasePetRepository } from '../../infrastructure/adapters/SupabasePetRepository';
 import { SupabaseDroppingRepository } from '../../infrastructure/adapters/SupabaseDroppingRepository';
 import { SupabaseWalkRepository } from '../../infrastructure/adapters/SupabaseWalkRepository';
+import { SupabaseWeightRepository } from '../../infrastructure/adapters/SupabaseWeightRepository';
 import { ExpoGpsAdapter } from '../../infrastructure/adapters/ExpoGpsAdapter';
 import { ExpoImagePickerAdapter } from '../../infrastructure/adapters/ExpoImagePickerAdapter';
 import { ExpoNotificationAdapter } from '../../infrastructure/adapters/ExpoNotificationAdapter';
@@ -17,7 +19,10 @@ import { SyncManager } from '../../infrastructure/sync/SyncManager';
 import { SyncedPetRepository } from '../../infrastructure/sync/SyncedPetRepository';
 import { SyncedDroppingRepository } from '../../infrastructure/sync/SyncedDroppingRepository';
 import { SyncedWalkRepository } from '../../infrastructure/sync/SyncedWalkRepository';
+import { SyncedWeightRepository } from '../../infrastructure/sync/SyncedWeightRepository';
 import { RecordDroppingUseCase } from '../../application/use-cases/RecordDroppingUseCase';
+import { RecordWeightUseCase } from '../../application/use-cases/RecordWeightUseCase';
+import { GetPetWeightHistoryUseCase } from '../../application/use-cases/GetPetWeightHistoryUseCase';
 import {
   GetPetsUseCase,
   SavePetUseCase,
@@ -32,10 +37,12 @@ import {
 import { StartWalkUseCase } from '../../application/use-cases/StartWalkUseCase';
 import { EndWalkUseCase } from '../../application/use-cases/EndWalkUseCase';
 import { GetActiveWalkUseCase } from '../../application/use-cases/GetActiveWalkUseCase';
+import { GetPetWalksUseCase } from '../../application/use-cases/GetPetWalksUseCase';
 import { CheckIntestinalHealthAlertUseCase } from '../../application/use-cases/CheckIntestinalHealthAlertUseCase';
 import { ScheduleWalkReminderUseCase } from '../../application/use-cases/ScheduleWalkReminderUseCase';
 import { CancelWalkReminderUseCase } from '../../application/use-cases/CancelWalkReminderUseCase';
 import { ScheduleMedicationReminderUseCase } from '../../application/use-cases/ScheduleMedicationReminderUseCase';
+import { ScheduleFeedingReminderUseCase } from '../../application/use-cases/ScheduleFeedingReminderUseCase';
 import { GetPetDroppingLocationsUseCase } from '../../application/use-cases/GetPetDroppingLocationsUseCase';
 import { GetClinicalMetricsUseCase } from '../../application/use-cases/GetClinicalMetricsUseCase';
 import {
@@ -46,6 +53,7 @@ import { IAuthService } from '../../domain/ports/IAuthService';
 import { IPetRepository } from '../../domain/ports/IPetRepository';
 import { IDroppingRepository } from '../../domain/ports/IDroppingRepository';
 import { IWalkRepository } from '../../domain/ports/IWalkRepository';
+import { IWeightRepository } from '../../domain/ports/IWeightRepository';
 import { IGpsService } from '../../domain/ports/IGpsService';
 import { IImagePickerService } from '../../domain/ports/IImagePickerService';
 import { INotificationService } from '../../domain/ports/INotificationService';
@@ -53,6 +61,7 @@ import { INotificationService } from '../../domain/ports/INotificationService';
 const localPetRepository = new AsyncStoragePetRepository();
 const localDroppingRepository = new AsyncStorageDroppingRepository();
 const localWalkRepository = new AsyncStorageWalkRepository();
+const localWeightRepository = new AsyncStorageWeightRepository();
 // Solo local por ahora (sin sync a Supabase): ver nota en el adapter.
 const petEventRepository = new AsyncStoragePetEventRepository();
 const gpsService = new ExpoGpsAdapter();
@@ -69,6 +78,7 @@ let authService: IAuthService;
 let petRepository: IPetRepository;
 let droppingRepository: IDroppingRepository;
 let walkRepository: IWalkRepository;
+let weightRepository: IWeightRepository;
 
 if (isSupabaseConfigured()) {
   authService = new SupabaseAuthAdapter();
@@ -94,10 +104,18 @@ if (isSupabaseConfigured()) {
     syncQueue,
   );
 
+  const remoteWeightRepository = new SupabaseWeightRepository();
+  weightRepository = new SyncedWeightRepository(
+    localWeightRepository,
+    remoteWeightRepository,
+    syncQueue,
+  );
+
   const syncManager = new SyncManager(syncQueue, {
     pet: remotePetRepository,
     dropping: remoteDroppingRepository,
     walk: remoteWalkRepository,
+    weight: remoteWeightRepository,
   });
   syncManager.start();
 } else {
@@ -109,9 +127,14 @@ if (isSupabaseConfigured()) {
   petRepository = localPetRepository;
   droppingRepository = localDroppingRepository;
   walkRepository = localWalkRepository;
+  weightRepository = localWeightRepository;
 }
 
 const recordDroppingUseCase = new RecordDroppingUseCase(droppingRepository);
+const recordWeightUseCase = new RecordWeightUseCase(weightRepository);
+const getPetWeightHistoryUseCase = new GetPetWeightHistoryUseCase(
+  weightRepository,
+);
 const getPetsUseCase = new GetPetsUseCase(petRepository);
 const savePetUseCase = new SavePetUseCase(petRepository);
 const updatePetUseCase = new UpdatePetUseCase(petRepository);
@@ -119,6 +142,7 @@ const deletePetUseCase = new DeletePetUseCase(petRepository);
 const startWalkUseCase = new StartWalkUseCase(walkRepository);
 const endWalkUseCase = new EndWalkUseCase(walkRepository);
 const getActiveWalkUseCase = new GetActiveWalkUseCase(walkRepository);
+const getPetWalksUseCase = new GetPetWalksUseCase(walkRepository);
 const checkIntestinalHealthAlertUseCase = new CheckIntestinalHealthAlertUseCase(
   droppingRepository,
   notificationService,
@@ -145,10 +169,15 @@ const getPetEventsUseCase = new GetPetEventsUseCase(petEventRepository);
 const scheduleMedicationReminderUseCase = new ScheduleMedicationReminderUseCase(
   notificationService,
 );
+const scheduleFeedingReminderUseCase = new ScheduleFeedingReminderUseCase(
+  notificationService,
+);
 
 interface DependencyContextType {
   droppingRepository: IDroppingRepository;
   recordDroppingUseCase: RecordDroppingUseCase;
+  recordWeightUseCase: RecordWeightUseCase;
+  getPetWeightHistoryUseCase: GetPetWeightHistoryUseCase;
   getPetsUseCase: GetPetsUseCase;
   savePetUseCase: SavePetUseCase;
   updatePetUseCase: UpdatePetUseCase;
@@ -156,6 +185,7 @@ interface DependencyContextType {
   startWalkUseCase: StartWalkUseCase;
   endWalkUseCase: EndWalkUseCase;
   getActiveWalkUseCase: GetActiveWalkUseCase;
+  getPetWalksUseCase: GetPetWalksUseCase;
   checkIntestinalHealthAlertUseCase: CheckIntestinalHealthAlertUseCase;
   scheduleWalkReminderUseCase: ScheduleWalkReminderUseCase;
   cancelWalkReminderUseCase: CancelWalkReminderUseCase;
@@ -167,6 +197,7 @@ interface DependencyContextType {
   recordPetEventUseCase: RecordPetEventUseCase;
   getPetEventsUseCase: GetPetEventsUseCase;
   scheduleMedicationReminderUseCase: ScheduleMedicationReminderUseCase;
+  scheduleFeedingReminderUseCase: ScheduleFeedingReminderUseCase;
   authService: IAuthService;
   gpsService: IGpsService;
   imagePickerAdapter: IImagePickerService;
@@ -183,6 +214,8 @@ export const DependencyProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         droppingRepository,
         recordDroppingUseCase,
+        recordWeightUseCase,
+        getPetWeightHistoryUseCase,
         getPetsUseCase,
         savePetUseCase,
         updatePetUseCase,
@@ -190,6 +223,7 @@ export const DependencyProvider: React.FC<{ children: React.ReactNode }> = ({
         startWalkUseCase,
         endWalkUseCase,
         getActiveWalkUseCase,
+        getPetWalksUseCase,
         checkIntestinalHealthAlertUseCase,
         scheduleWalkReminderUseCase,
         cancelWalkReminderUseCase,
@@ -201,6 +235,7 @@ export const DependencyProvider: React.FC<{ children: React.ReactNode }> = ({
         recordPetEventUseCase,
         getPetEventsUseCase,
         scheduleMedicationReminderUseCase,
+        scheduleFeedingReminderUseCase,
         authService,
         gpsService,
         imagePickerAdapter,

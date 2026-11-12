@@ -12,11 +12,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDependencies } from '../context/DependencyContext';
 import { useActivePet } from '../context/ActivePetContext';
 import { Dropping, PoopConsistency } from '../../domain/entities/Dropping';
 import { Pet } from '../../domain/entities/Pet';
+import { WeightEntry } from '../../domain/entities/WeightEntry';
 import { ClinicalMetricsChart } from '../components/ClinicalMetricsChart';
 import { ClinicalMetrics } from '../../application/use-cases/GetClinicalMetricsUseCase';
 import { EmptyPetsState } from '../components/EmptyPetsState';
@@ -25,37 +28,36 @@ import {
   DroppingFormModal,
   DroppingFormValues,
 } from '../components/DroppingFormModal';
-import {
-  PetEventFormModal,
-  PetEventFormValues,
-} from '../components/PetEventFormModal';
+import { WeightFormModal, WeightFormValues } from '../components/WeightFormModal';
+import { WeightChart } from '../components/WeightChart';
 import { PetHistoryModal } from '../components/PetHistoryModal';
-import { PetEventType } from '../../domain/entities/PetEvent';
 import { SettingsScreen } from './SettingsScreen';
 import { ThemeColors, useTheme } from '../context/ThemeContext';
+import { ProfileStackParamList } from '../navigation/ProfileStackParamList';
 
 type MetricsRangeDays = 7 | 30;
 
-interface Props {
+type Props = NativeStackScreenProps<ProfileStackParamList, 'ProfileHome'> & {
   onLogout?: () => void;
-}
+};
 
-export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
+export const ProfileScreen: React.FC<Props> = ({ onLogout, navigation }) => {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     droppingRepository,
     recordDroppingUseCase,
+    recordWeightUseCase,
+    getPetWeightHistoryUseCase,
     checkIntestinalHealthAlertUseCase,
     gpsService,
     savePetUseCase,
     authService,
     imagePickerAdapter,
     getClinicalMetricsUseCase,
-    recordPetEventUseCase,
     getPetEventsUseCase,
-    scheduleMedicationReminderUseCase,
+    getPetWalksUseCase,
   } = useDependencies();
   const {
     pets,
@@ -80,10 +82,11 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [isDroppingModalVisible, setIsDroppingModalVisible] = useState(false);
   const [isSavingDropping, setIsSavingDropping] = useState(false);
-  const [petEventModalType, setPetEventModalType] =
-    useState<PetEventType | null>(null);
-  const [isSavingPetEvent, setIsSavingPetEvent] = useState(false);
   const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
+  const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
+  const [isLoadingWeight, setIsLoadingWeight] = useState(true);
+  const [isWeightModalVisible, setIsWeightModalVisible] = useState(false);
+  const [isSavingWeight, setIsSavingWeight] = useState(false);
 
   const loadHistory = async (petId: string) => {
     setIsLoadingHistory(true);
@@ -114,16 +117,32 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
     }
   };
 
+  const loadWeightHistory = async (petId: string) => {
+    setIsLoadingWeight(true);
+    try {
+      const entries = await getPetWeightHistoryUseCase.execute(petId);
+      setWeightHistory(entries);
+    } catch (error) {
+      console.error('Error al cargar el historial de peso:', error);
+      setWeightHistory([]);
+    } finally {
+      setIsLoadingWeight(false);
+    }
+  };
+
   useFocusEffect(
     React.useCallback(() => {
       if (selectedPet) {
         loadHistory(selectedPet.id);
         loadMetrics(selectedPet.id, metricsRangeDays);
+        loadWeightHistory(selectedPet.id);
       } else {
         setHistory([]);
         setIsLoadingHistory(false);
         setClinicalMetrics(null);
         setIsLoadingMetrics(false);
+        setWeightHistory([]);
+        setIsLoadingWeight(false);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedPet?.id]),
@@ -235,6 +254,10 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
         longitude: location?.longitude,
         consistency: values.consistency,
         color: values.colorHex,
+        // Reutilizamos `notes` para guardar la etiqueta de sitio ("En casa",
+        // "Terraza"...) de las deposiciones registradas fuera de un paseo:
+        // evita añadir una columna nueva solo para esto.
+        notes: values.placeLabel,
       });
 
       setIsDroppingModalVisible(false);
@@ -268,51 +291,30 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
     }
   };
 
-  const handleSavePetEvent = async (values: PetEventFormValues) => {
-    if (!selectedPet || !petEventModalType) return;
+  const handleSaveWeight = async (values: WeightFormValues) => {
+    if (!selectedPet) return;
 
-    setIsSavingPetEvent(true);
+    setIsSavingWeight(true);
     try {
-      const nextDoseAt = values.reminderInMs
-        ? new Date(Date.now() + values.reminderInMs)
-        : undefined;
-
-      const event = await recordPetEventUseCase.execute({
+      await recordWeightUseCase.execute({
         petId: selectedPet.id,
-        type: petEventModalType,
+        weightKg: values.weightKg,
         notes: values.notes,
-        foodAmount: values.foodAmount,
-        medicineName: values.medicineName,
-        dose: values.dose,
-        nextDoseAt,
       });
 
-      if (nextDoseAt && values.medicineName) {
-        await scheduleMedicationReminderUseCase.execute(
-          event.id,
-          selectedPet.name,
-          values.medicineName,
-          nextDoseAt,
-        );
-      }
-
-      const typeLabel =
-        petEventModalType === 'feeding' ? 'Alimentación' : 'Medicamento';
-      setPetEventModalType(null);
-      Alert.alert(
-        '¡Registrado!',
-        nextDoseAt
-          ? `${typeLabel} guardado con éxito. Te avisaremos para la próxima dosis.`
-          : `${typeLabel} guardado con éxito.`,
-      );
+      setIsWeightModalVisible(false);
+      await loadWeightHistory(selectedPet.id);
+      Alert.alert('¡Registrado!', '⚖️ Peso guardado con éxito.');
     } catch (error) {
-      console.error('Error al registrar el evento:', error);
+      console.error('Error al registrar el peso:', error);
       Alert.alert(
         'No se pudo registrar',
-        'Ocurrió un problema al guardar el evento. Inténtalo de nuevo.',
+        error instanceof Error
+          ? error.message
+          : 'Ocurrió un problema al guardar el peso. Inténtalo de nuevo.',
       );
     } finally {
-      setIsSavingPetEvent(false);
+      setIsSavingWeight(false);
     }
   };
 
@@ -487,12 +489,15 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
       ]}
     >
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>🐾 PetTracker</Text>
+        <View style={styles.headerTitleRow}>
+          <Ionicons name="paw" size={20} color={colors.primary} />
+          <Text style={styles.headerTitle}>PetTracker</Text>
+        </View>
         <TouchableOpacity
           style={styles.settingsBtn}
           onPress={() => setIsSettingsVisible(true)}
         >
-          <Text style={styles.settingsBtnText}>⚙️</Text>
+          <Ionicons name="settings-outline" size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -529,7 +534,12 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
                       style={styles.chipAvatar}
                     />
                   ) : (
-                    <Text style={styles.chipEmoji}>🐶</Text>
+                    <Ionicons
+                      name="paw"
+                      size={16}
+                      color={colors.textMuted}
+                      style={styles.chipPawIcon}
+                    />
                   )}
                   <Text
                     style={[
@@ -564,7 +574,9 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
                     style={styles.avatarImage}
                   />
                 ) : (
-                  <Text style={styles.avatarEmoji}>🐶</Text>
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="paw" size={26} color={colors.textMuted} />
+                  </View>
                 )}
               </TouchableOpacity>
               <View style={styles.profileInfo}>
@@ -590,15 +602,21 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.quickActionBtn}
-                onPress={() => setPetEventModalType('feeding')}
+                onPress={() => navigation.navigate('PetEvent', { type: 'feeding' })}
               >
                 <Text style={styles.quickActionBtnText}>🍖 Comida</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.quickActionBtn}
-                onPress={() => setPetEventModalType('medication')}
+                onPress={() => navigation.navigate('PetEvent', { type: 'medication' })}
               >
                 <Text style={styles.quickActionBtnText}>💊 Medicina</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickActionBtn}
+                onPress={() => setIsWeightModalVisible(true)}
+              >
+                <Text style={styles.quickActionBtnText}>⚖️ Peso</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -606,9 +624,12 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
           {/* Dashboard de Salud Semanal */}
           {selectedPet && (
             <View style={styles.statsCard}>
-              <Text style={styles.statsTitle}>
-                📊 Resumen de los últimos 7 días
-              </Text>
+              <View style={styles.statsTitleRow}>
+                <Ionicons name="stats-chart-outline" size={15} color={colors.text} />
+                <Text style={styles.statsTitle}>
+                  Resumen de los últimos 7 días
+                </Text>
+              </View>
               <Text style={styles.statsTotal}>
                 {weeklyStats.total} deposición(es) esta semana
               </Text>
@@ -628,8 +649,9 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
                 style={styles.shareReportBtn}
                 onPress={handleShareVetReport}
               >
+                <Ionicons name="share-social-outline" size={15} color={colors.white} />
                 <Text style={styles.shareReportText}>
-                  📤 Compartir Informe Veterinario
+                  Compartir Informe Veterinario
                 </Text>
               </TouchableOpacity>
             </View>
@@ -639,7 +661,10 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
           {selectedPet && (
             <View style={styles.statsCard}>
               <View style={styles.metricsHeaderRow}>
-                <Text style={styles.statsTitle}>📈 Gráficas Clínicas</Text>
+                <View style={styles.statsTitleRow}>
+                  <Ionicons name="trending-up-outline" size={15} color={colors.text} />
+                  <Text style={styles.statsTitle}>Gráficas Clínicas</Text>
+                </View>
                 <View style={styles.rangeSelector}>
                   {([7, 30] as MetricsRangeDays[]).map((days) => (
                     <TouchableOpacity
@@ -674,10 +699,31 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
             </View>
           )}
 
+          {/* Evolución de Peso */}
+          {selectedPet && (
+            <View style={styles.statsCard}>
+              <View style={styles.statsTitleRow}>
+                <Ionicons name="scale-outline" size={15} color={colors.text} />
+                <Text style={styles.statsTitle}>Evolución de Peso</Text>
+              </View>
+
+              {isLoadingWeight ? (
+                <View style={styles.emptyState}>
+                  <ActivityIndicator size="small" color="#4CAF50" />
+                </View>
+              ) : (
+                <WeightChart entries={weightHistory} />
+              )}
+            </View>
+          )}
+
           {/* Historial Clínico de la Mascota Seleccionada */}
-          <Text style={styles.historyTitle}>
-            📋 Historial Clínico de {selectedPet?.name || ''} ({history.length})
-          </Text>
+          <View style={styles.historyTitleRow}>
+            <Ionicons name="document-text-outline" size={16} color={colors.text} />
+            <Text style={styles.historyTitle}>
+              Historial Clínico de {selectedPet?.name || ''} ({history.length})
+            </Text>
+          </View>
 
           {isLoadingPets || isLoadingHistory ? (
             <View style={styles.emptyState}>
@@ -686,7 +732,12 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
             </View>
           ) : history.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateEmoji}>🐾</Text>
+              <Ionicons
+                name="paw-outline"
+                size={32}
+                color={colors.textMuted}
+                style={styles.emptyStateIcon}
+              />
               <Text style={styles.emptyStateText}>
                 Aún no hay deposiciones registradas
                 {selectedPet ? ` para ${selectedPet.name}` : ''}.
@@ -705,13 +756,20 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
                 return (
                   <View style={styles.historyItem}>
                     <View style={styles.itemContent}>
-                      <Text style={styles.itemDate}>
-                        📅 {new Date(item.timestamp).toLocaleDateString()} -{' '}
-                        {new Date(item.timestamp).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </Text>
+                      <View style={styles.itemDateRow}>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={13}
+                          color={colors.text}
+                        />
+                        <Text style={styles.itemDate}>
+                          {new Date(item.timestamp).toLocaleDateString()} -{' '}
+                          {new Date(item.timestamp).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      </View>
 
                       <View style={styles.detailsRow}>
                         <Text style={styles.detailsText}>
@@ -726,11 +784,22 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
                         />
                       </View>
 
-                      <Text style={styles.coordsText}>
-                        {item.location
-                          ? `📍 GPS: ${item.location.latitude.toFixed(4)}, ${item.location.longitude.toFixed(4)}`
-                          : 'Sin ubicación GPS'}
-                      </Text>
+                      <View style={styles.coordsRow}>
+                        {(item.notes || item.location) && (
+                          <Ionicons
+                            name="location-outline"
+                            size={12}
+                            color={colors.textMuted}
+                          />
+                        )}
+                        <Text style={styles.coordsText}>
+                          {item.notes
+                            ? item.notes
+                            : item.location
+                              ? `GPS: ${item.location.latitude.toFixed(4)}, ${item.location.longitude.toFixed(4)}`
+                              : 'Sin ubicación'}
+                        </Text>
+                      </View>
                     </View>
                     <Text style={styles.poopBadge}>💩</Text>
                   </View>
@@ -744,7 +813,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
       {/* Modal para Crear Nueva Mascota */}
       <PetFormModal
         visible={isAddPetModalVisible}
-        title="🐶 Nueva Mascota"
+        title="Nueva Mascota"
         submitLabel="Guardar"
         isSubmitting={isSavingNewPet}
         onClose={() => setIsAddPetModalVisible(false)}
@@ -755,16 +824,16 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
       <DroppingFormModal
         visible={isDroppingModalVisible}
         isSubmitting={isSavingDropping}
+        showPlaceField
         onClose={() => setIsDroppingModalVisible(false)}
         onSubmit={handleSaveDropping}
       />
 
-      <PetEventFormModal
-        visible={petEventModalType !== null}
-        type={petEventModalType}
-        isSubmitting={isSavingPetEvent}
-        onClose={() => setPetEventModalType(null)}
-        onSubmit={handleSavePetEvent}
+      <WeightFormModal
+        visible={isWeightModalVisible}
+        isSubmitting={isSavingWeight}
+        onClose={() => setIsWeightModalVisible(false)}
+        onSubmit={handleSaveWeight}
       />
 
       {selectedPet && (
@@ -773,6 +842,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout }) => {
           pet={selectedPet}
           getPetEventsUseCase={getPetEventsUseCase}
           droppingRepository={droppingRepository}
+          getPetWalksUseCase={getPetWalksUseCase}
           onClose={() => setIsHistoryModalVisible(false)}
         />
       )}
@@ -799,11 +869,11 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       marginBottom: 14,
     },
+    headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     headerTitle: { fontSize: 20, fontWeight: 'bold', color: colors.text },
     settingsBtn: {
       padding: 6,
     },
-    settingsBtnText: { fontSize: 22 },
     sectionHeader: {
       fontSize: 14,
       fontWeight: 'bold',
@@ -830,7 +900,7 @@ const createStyles = (colors: ThemeColors) =>
       opacity: 0.4,
     },
     chipAvatar: { width: 24, height: 24, borderRadius: 12, marginRight: 8 },
-    chipEmoji: { fontSize: 16, marginRight: 6 },
+    chipPawIcon: { marginRight: 6 },
     chipName: { fontSize: 14, color: colors.text, fontWeight: '500' },
     chipNameSelected: { color: colors.white, fontWeight: 'bold' },
     addPetBtn: {
@@ -856,7 +926,14 @@ const createStyles = (colors: ThemeColors) =>
     },
     avatarWrapper: { marginRight: 15 },
     avatarImage: { width: 56, height: 56, borderRadius: 28 },
-    avatarEmoji: { fontSize: 40 },
+    avatarPlaceholder: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     profileInfo: { flex: 1, justifyContent: 'center' },
     quickActionsRow: {
       flexDirection: 'row',
@@ -881,11 +958,16 @@ const createStyles = (colors: ThemeColors) =>
       marginBottom: 15,
       elevation: 2,
     },
+    statsTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 4,
+    },
     statsTitle: {
       fontSize: 14,
       fontWeight: 'bold',
       color: colors.text,
-      marginBottom: 4,
     },
     statsTotal: {
       fontSize: 13,
@@ -931,18 +1013,26 @@ const createStyles = (colors: ThemeColors) =>
     rangeChipText: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
     rangeChipTextSelected: { color: colors.white },
     shareReportBtn: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 6,
       backgroundColor: '#1976D2',
       paddingVertical: 10,
       borderRadius: 10,
-      alignItems: 'center',
       marginTop: 14,
     },
     shareReportText: { color: colors.white, fontWeight: 'bold', fontSize: 13 },
+    historyTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 10,
+    },
     historyTitle: {
       fontSize: 15,
       fontWeight: 'bold',
       color: colors.text,
-      marginBottom: 10,
     },
     list: { width: '100%' },
     emptyState: {
@@ -951,7 +1041,7 @@ const createStyles = (colors: ThemeColors) =>
       justifyContent: 'center',
       paddingVertical: 40,
     },
-    emptyStateEmoji: { fontSize: 36, marginBottom: 8 },
+    emptyStateIcon: { marginBottom: 8 },
     emptyStateText: {
       fontSize: 13,
       color: colors.textMuted,
@@ -970,6 +1060,7 @@ const createStyles = (colors: ThemeColors) =>
       borderColor: colors.border,
     },
     itemContent: { flex: 1, paddingRight: 10 },
+    itemDateRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     itemDate: { fontSize: 14, fontWeight: '600', color: colors.text },
     detailsRow: {
       flexDirection: 'row',
@@ -986,6 +1077,12 @@ const createStyles = (colors: ThemeColors) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
-    coordsText: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
+    coordsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 4,
+    },
+    coordsText: { fontSize: 11, color: colors.textMuted },
     poopBadge: { fontSize: 22, marginLeft: 4 },
   });

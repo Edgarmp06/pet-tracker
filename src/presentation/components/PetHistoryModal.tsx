@@ -9,11 +9,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Pet } from '../../domain/entities/Pet';
 import { PetEvent } from '../../domain/entities/PetEvent';
 import { Dropping } from '../../domain/entities/Dropping';
+import { Walk } from '../../domain/entities/Walk';
 import { IDroppingRepository } from '../../domain/ports/IDroppingRepository';
 import { GetPetEventsUseCase } from '../../application/use-cases/PetEventUseCases';
+import { GetPetWalksUseCase } from '../../application/use-cases/GetPetWalksUseCase';
 import { ThemeColors, useTheme } from '../context/ThemeContext';
 
 interface Props {
@@ -21,6 +24,7 @@ interface Props {
   pet: Pet;
   getPetEventsUseCase: GetPetEventsUseCase;
   droppingRepository: IDroppingRepository;
+  getPetWalksUseCase: GetPetWalksUseCase;
   onClose: () => void;
 }
 
@@ -48,9 +52,21 @@ const formatDateTime = (date: Date): string =>
     minute: '2-digit',
   });
 
+const formatDistance = (meters: number): string =>
+  meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${Math.round(meters)} m`;
+
+const formatDuration = (ms: number): string => {
+  const totalMinutes = Math.round(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes} min`;
+  return `${hours} h ${minutes} min`;
+};
+
 const toHistoryEntries = (
   events: PetEvent[],
   droppings: Dropping[],
+  walks: Walk[],
 ): HistoryEntry[] => {
   const fromEvents: HistoryEntry[] = events.map((event) => {
     if (event.type === 'medication') {
@@ -82,7 +98,18 @@ const toHistoryEntries = (
     subtitle: dropping.notes,
   }));
 
-  return [...fromEvents, ...fromDroppings].sort(
+  const fromWalks: HistoryEntry[] = walks.map((walk) => ({
+    id: walk.id,
+    timestamp: walk.endTime || walk.startTime,
+    icon: '🚶',
+    title: `Paseo — ${formatDistance(walk.distanceMeters)}`,
+    subtitle:
+      walk.durationMs !== undefined
+        ? formatDuration(walk.durationMs)
+        : undefined,
+  }));
+
+  return [...fromEvents, ...fromDroppings, ...fromWalks].sort(
     (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
   );
 };
@@ -92,6 +119,7 @@ export const PetHistoryModal: React.FC<Props> = ({
   pet,
   getPetEventsUseCase,
   droppingRepository,
+  getPetWalksUseCase,
   onClose,
 }) => {
   const { colors } = useTheme();
@@ -108,10 +136,11 @@ export const PetHistoryModal: React.FC<Props> = ({
     Promise.all([
       getPetEventsUseCase.execute(pet.id),
       droppingRepository.findByPetId(pet.id),
+      getPetWalksUseCase.execute(pet.id),
     ])
-      .then(([events, droppings]) => {
+      .then(([events, droppings, walks]) => {
         if (cancelled) return;
-        setEntries(toHistoryEntries(events, droppings));
+        setEntries(toHistoryEntries(events, droppings, walks));
       })
       .catch((error) => {
         console.error('No se pudo cargar el historial de la mascota:', error);
@@ -124,7 +153,7 @@ export const PetHistoryModal: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [visible, pet.id, getPetEventsUseCase, droppingRepository]);
+  }, [visible, pet.id, getPetEventsUseCase, droppingRepository, getPetWalksUseCase]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -134,12 +163,14 @@ export const PetHistoryModal: React.FC<Props> = ({
             {pet.avatarUri ? (
               <Image source={{ uri: pet.avatarUri }} style={styles.avatar} />
             ) : (
-              <Text style={styles.avatarEmoji}>🐶</Text>
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="paw" size={20} color={colors.textMuted} />
+              </View>
             )}
             <View style={styles.headerText}>
               <Text style={styles.title}>Historial de {pet.name}</Text>
               <Text style={styles.subtitle}>
-                Comida, medicinas y deposiciones
+                Comida, medicinas, deposiciones y paseos
               </Text>
             </View>
           </View>
@@ -208,7 +239,15 @@ const createStyles = (colors: ThemeColors) =>
       marginBottom: 14,
     },
     avatar: { width: 48, height: 48, borderRadius: 24, marginRight: 12 },
-    avatarEmoji: { fontSize: 36, marginRight: 12 },
+    avatarPlaceholder: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      marginRight: 12,
+      backgroundColor: colors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     headerText: { flex: 1 },
     title: { fontSize: 17, fontWeight: 'bold', color: colors.text },
     subtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2 },

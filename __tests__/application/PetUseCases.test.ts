@@ -45,6 +45,29 @@ describe('SavePetUseCase', () => {
     expect(pet.gender).toBe('female');
     expect(repository.pets).toHaveLength(1);
   });
+
+  it('por defecto la mascota sale de paseo (goesOnWalks = true)', async () => {
+    const repository = new InMemoryPetRepository();
+    const useCase = new SavePetUseCase(repository);
+
+    const pet = await useCase.execute({ userId: 'user-1', name: 'Rex' });
+
+    expect(pet.goesOnWalks).toBe(true);
+  });
+
+  it('permite marcar un gato como que no sale de paseo', async () => {
+    const repository = new InMemoryPetRepository();
+    const useCase = new SavePetUseCase(repository);
+
+    const pet = await useCase.execute({
+      userId: 'user-1',
+      name: 'Michi',
+      species: 'cat',
+      goesOnWalks: false,
+    });
+
+    expect(pet.goesOnWalks).toBe(false);
+  });
 });
 
 describe('UpdatePetUseCase', () => {

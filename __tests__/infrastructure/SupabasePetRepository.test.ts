@@ -43,6 +43,7 @@ describe('SupabasePetRepository', () => {
           avatar_uri: 'file://avatar.png',
           species: 'dog',
           gender: 'male',
+          goes_on_walks: false,
         },
       ],
       error: null,
@@ -60,6 +61,7 @@ describe('SupabasePetRepository', () => {
     expect(pets[0].avatarUri).toBe('file://avatar.png');
     expect(pets[0].species).toBe('dog');
     expect(pets[0].gender).toBe('male');
+    expect(pets[0].goesOnWalks).toBe(false);
   });
 
   it('lanza un error legible si Supabase devuelve un error al leer', async () => {
@@ -96,6 +98,7 @@ describe('SupabasePetRepository', () => {
       avatar_uri: null,
       species: 'dog',
       gender: 'male',
+      goes_on_walks: true,
     });
   });
 

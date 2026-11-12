@@ -1,5 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { ColorGradientPicker } from './ColorGradientPicker';
 import { PoopConsistency } from '../../domain/entities/Dropping';
 import { ThemeColors, useTheme } from '../context/ThemeContext';
@@ -7,11 +17,14 @@ import { ThemeColors, useTheme } from '../context/ThemeContext';
 export interface DroppingFormValues {
   consistency: PoopConsistency;
   colorHex: string;
+  placeLabel?: string;
 }
 
 interface Props {
   visible: boolean;
   isSubmitting?: boolean;
+  /** Muestra el selector de "¿Dónde?" — solo tiene sentido fuera de un paseo activo. */
+  showPlaceField?: boolean;
   onClose: () => void;
   onSubmit: (values: DroppingFormValues) => void;
 }
@@ -23,11 +36,15 @@ const CONSISTENCY_OPTIONS: { key: PoopConsistency; label: string }[] = [
   { key: 'diarrhea', label: '🌊 Diarrea' },
 ];
 
+const PLACE_OPTIONS = ['En casa', 'Terraza', 'Patio / Jardín'];
+const OTHER_PLACE = 'Otro sitio';
+
 const DEFAULT_COLOR_HEX = '#6D4C41';
 
 export const DroppingFormModal: React.FC<Props> = ({
   visible,
   isSubmitting,
+  showPlaceField,
   onClose,
   onSubmit,
 }) => {
@@ -35,16 +52,32 @@ export const DroppingFormModal: React.FC<Props> = ({
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [consistency, setConsistency] = useState<PoopConsistency>('normal');
   const [colorHex, setColorHex] = useState<string>(DEFAULT_COLOR_HEX);
+  const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
+  const [customPlace, setCustomPlace] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     setConsistency('normal');
     setColorHex(DEFAULT_COLOR_HEX);
+    setSelectedPlace(null);
+    setCustomPlace('');
   }, [visible]);
+
+  const placeLabel =
+    selectedPlace === OTHER_PLACE
+      ? customPlace.trim() || undefined
+      : selectedPlace || undefined;
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.content}>
           <Text style={styles.title}>💩 Registrar Deposición</Text>
 
@@ -77,13 +110,49 @@ export const DroppingFormModal: React.FC<Props> = ({
             onColorChange={setColorHex}
           />
 
+          {showPlaceField && (
+            <>
+              <Text style={styles.label}>¿Dónde?</Text>
+              <View style={styles.optionsRow}>
+                {[...PLACE_OPTIONS, OTHER_PLACE].map((place) => (
+                  <TouchableOpacity
+                    key={place}
+                    style={[
+                      styles.chip,
+                      selectedPlace === place && styles.chipSelected,
+                    ]}
+                    onPress={() => setSelectedPlace(place)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selectedPlace === place && styles.chipTextSelected,
+                      ]}
+                    >
+                      {place}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {selectedPlace === OTHER_PLACE && (
+                <TextInput
+                  style={styles.placeInput}
+                  placeholder="Ej. Habitación de Juan"
+                  placeholderTextColor={colors.textMuted}
+                  value={customPlace}
+                  onChangeText={setCustomPlace}
+                />
+              )}
+            </>
+          )}
+
           <View style={styles.buttons}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
               <Text style={styles.cancelText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.saveBtn, isSubmitting && styles.saveBtnDisabled]}
-              onPress={() => onSubmit({ consistency, colorHex })}
+              onPress={() => onSubmit({ consistency, colorHex, placeLabel })}
               disabled={isSubmitting}
             >
               <Text style={styles.saveText}>
@@ -92,7 +161,8 @@ export const DroppingFormModal: React.FC<Props> = ({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -102,6 +172,9 @@ const createStyles = (colors: ThemeColors) =>
     overlay: {
       flex: 1,
       backgroundColor: colors.overlay,
+    },
+    scrollContent: {
+      flexGrow: 1,
       justifyContent: 'center',
       alignItems: 'center',
       padding: 20,
@@ -144,6 +217,17 @@ const createStyles = (colors: ThemeColors) =>
     chipSelected: { backgroundColor: '#795548', borderColor: '#795548' },
     chipText: { fontSize: 13, color: colors.text },
     chipTextSelected: { color: colors.white, fontWeight: 'bold' },
+    placeInput: {
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      fontSize: 14,
+      color: colors.text,
+      marginTop: 8,
+    },
     buttons: {
       flexDirection: 'row',
       justifyContent: 'space-between',

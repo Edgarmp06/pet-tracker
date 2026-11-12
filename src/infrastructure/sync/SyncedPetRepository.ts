@@ -11,6 +11,7 @@ const serializePet = (pet: Pet): PetProps => ({
   avatarUri: pet.avatarUri,
   species: pet.species,
   gender: pet.gender,
+  goesOnWalks: pet.goesOnWalks,
 });
 
 /**

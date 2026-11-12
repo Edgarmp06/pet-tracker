@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,6 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PetGender, PetSpecies } from '../../domain/entities/Pet';
 import { ThemeColors, useTheme } from '../context/ThemeContext';
 
@@ -19,6 +23,7 @@ export interface PetFormValues {
   avatarUri?: string;
   species?: PetSpecies;
   gender?: PetGender;
+  goesOnWalks?: boolean;
 }
 
 interface Props {
@@ -32,15 +37,23 @@ interface Props {
   onSubmit: (values: PetFormValues) => void;
 }
 
-const SPECIES_OPTIONS: { key: PetSpecies; label: string; emoji: string }[] = [
-  { key: 'dog', label: 'Perro', emoji: '🐶' },
-  { key: 'cat', label: 'Gato', emoji: '🐱' },
-  { key: 'other', label: 'Otro', emoji: '🐾' },
+const SPECIES_OPTIONS: {
+  key: PetSpecies;
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+}[] = [
+  { key: 'dog', label: 'Perro', icon: 'dog' },
+  { key: 'cat', label: 'Gato', icon: 'cat' },
+  { key: 'other', label: 'Otro', icon: 'paw' },
 ];
 
-const GENDER_OPTIONS: { key: PetGender; label: string; emoji: string }[] = [
-  { key: 'male', label: 'Macho', emoji: '♂️' },
-  { key: 'female', label: 'Hembra', emoji: '♀️' },
+const GENDER_OPTIONS: {
+  key: PetGender;
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+}[] = [
+  { key: 'male', label: 'Macho', icon: 'gender-male' },
+  { key: 'female', label: 'Hembra', icon: 'gender-female' },
 ];
 
 const EMPTY_VALUES: PetFormValues = { name: '' };
@@ -57,12 +70,14 @@ export const PetFormModal: React.FC<Props> = ({
 }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [breed, setBreed] = useState('');
   const [age, setAge] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [species, setSpecies] = useState<PetSpecies | null>(null);
   const [gender, setGender] = useState<PetGender | null>(null);
+  const [goesOnWalks, setGoesOnWalks] = useState(true);
 
   useEffect(() => {
     if (!visible) return;
@@ -73,6 +88,7 @@ export const PetFormModal: React.FC<Props> = ({
     setAvatarUri(values.avatarUri || null);
     setSpecies(values.species || null);
     setGender(values.gender || null);
+    setGoesOnWalks(values.goesOnWalks ?? true);
   }, [visible, initialValues]);
 
   const handlePickAvatar = async () => {
@@ -90,18 +106,29 @@ export const PetFormModal: React.FC<Props> = ({
       avatarUri: avatarUri || undefined,
       species: species || undefined,
       gender: gender || undefined,
+      goesOnWalks: species === 'cat' ? goesOnWalks : true,
     });
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.sheet}>
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: insets.bottom + 32 },
+            ]}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            <Text style={styles.title}>{title}</Text>
+            <View style={styles.titleRow}>
+              <Ionicons name="paw" size={18} color={colors.primary} />
+              <Text style={styles.title}>{title}</Text>
+            </View>
 
             <TouchableOpacity
               style={styles.avatarPicker}
@@ -110,7 +137,7 @@ export const PetFormModal: React.FC<Props> = ({
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
               ) : (
-                <Text style={styles.avatarPickerText}>📷</Text>
+                <Ionicons name="camera-outline" size={28} color={colors.textMuted} />
               )}
             </TouchableOpacity>
             <Text style={styles.avatarHint}>Toca para elegir una foto</Text>
@@ -134,7 +161,12 @@ export const PetFormModal: React.FC<Props> = ({
                     style={[styles.optionCard, isSelected && styles.optionCardSelected]}
                     onPress={() => setSpecies(option.key)}
                   >
-                    <Text style={styles.optionEmoji}>{option.emoji}</Text>
+                    <MaterialCommunityIcons
+                      name={option.icon}
+                      size={24}
+                      color={isSelected ? colors.primary : colors.textMuted}
+                      style={styles.optionIcon}
+                    />
                     <Text
                       style={[
                         styles.optionLabel,
@@ -158,7 +190,12 @@ export const PetFormModal: React.FC<Props> = ({
                     style={[styles.optionCard, isSelected && styles.optionCardSelected]}
                     onPress={() => setGender(option.key)}
                   >
-                    <Text style={styles.optionEmoji}>{option.emoji}</Text>
+                    <MaterialCommunityIcons
+                      name={option.icon}
+                      size={24}
+                      color={isSelected ? colors.primary : colors.textMuted}
+                      style={styles.optionIcon}
+                    />
                     <Text
                       style={[
                         styles.optionLabel,
@@ -171,6 +208,45 @@ export const PetFormModal: React.FC<Props> = ({
                 );
               })}
             </View>
+
+            {species === 'cat' && (
+              <>
+                <Text style={styles.sectionLabel}>¿Sueles sacarlo a pasear?</Text>
+                <View style={styles.cardRow}>
+                  {[
+                    { value: true, label: 'Sí' },
+                    { value: false, label: 'No' },
+                  ].map((option) => {
+                    const isSelected = goesOnWalks === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={String(option.value)}
+                        style={[
+                          styles.optionCard,
+                          isSelected && styles.optionCardSelected,
+                        ]}
+                        onPress={() => setGoesOnWalks(option.value)}
+                      >
+                        <Text
+                          style={[
+                            styles.optionLabel,
+                            isSelected && styles.optionLabelSelected,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                {!goesOnWalks && (
+                  <Text style={styles.walkHint}>
+                    No aparecerá en la pestaña de Paseo. Podrás registrar sus
+                    deposiciones en casa, comida y medicina desde su perfil.
+                  </Text>
+                )}
+              </>
+            )}
 
             <View style={styles.inlineRow}>
               <View style={styles.inlineField}>
@@ -212,7 +288,7 @@ export const PetFormModal: React.FC<Props> = ({
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -231,12 +307,18 @@ const createStyles = (colors: ThemeColors) =>
       maxHeight: '88%',
     },
     scrollContent: { padding: 24, paddingBottom: 32 },
+    titleRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 20,
+    },
     title: {
       fontSize: 20,
       fontWeight: 'bold',
       color: colors.text,
       textAlign: 'center',
-      marginBottom: 20,
     },
     avatarPicker: {
       alignSelf: 'center',
@@ -249,7 +331,6 @@ const createStyles = (colors: ThemeColors) =>
       marginBottom: 6,
     },
     avatarImage: { width: 88, height: 88, borderRadius: 44 },
-    avatarPickerText: { fontSize: 28 },
     avatarHint: {
       textAlign: 'center',
       fontSize: 12,
@@ -291,9 +372,15 @@ const createStyles = (colors: ThemeColors) =>
       borderColor: colors.primary,
       backgroundColor: colors.primaryMuted,
     },
-    optionEmoji: { fontSize: 24, marginBottom: 4 },
+    optionIcon: { marginBottom: 4 },
     optionLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
     optionLabelSelected: { color: colors.primary },
+    walkHint: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: -10,
+      marginBottom: 18,
+    },
     inlineRow: { flexDirection: 'row' },
     inlineField: { flex: 1, marginRight: 12 },
     buttonRow: {

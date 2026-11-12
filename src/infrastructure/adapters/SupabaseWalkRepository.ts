@@ -71,6 +71,24 @@ export class SupabaseWalkRepository implements IWalkRepository {
     return data ? toWalk(data as WalkRow) : null;
   }
 
+  async findCompletedByPetId(petId: string): Promise<Walk[]> {
+    const { data, error } = await getSupabaseClient()
+      .from('walks')
+      .select('*')
+      .contains('pet_ids', [petId])
+      .not('end_time', 'is', null)
+      .is('deleted_at', null)
+      .order('start_time', { ascending: false });
+
+    if (error) {
+      throw new Error(
+        `No se pudieron obtener los paseos de la nube: ${error.message}`,
+      );
+    }
+
+    return (data || []).map((row) => toWalk(row as WalkRow));
+  }
+
   async save(walk: Walk): Promise<void> {
     const userId = await getCurrentUserId();
 

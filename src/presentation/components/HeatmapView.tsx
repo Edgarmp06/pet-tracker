@@ -1,5 +1,6 @@
 import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import MapView, {
   Heatmap,
   PROVIDER_DEFAULT,
@@ -38,7 +39,12 @@ export const HeatmapView: React.FC<Props> = ({ points }) => {
   if (points.length === 0) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyStateEmoji}>🗺️</Text>
+        <Ionicons
+          name="map-outline"
+          size={32}
+          color="#888"
+          style={styles.emptyStateIcon}
+        />
         <Text style={styles.emptyStateText}>
           Sin datos de ubicación registrados en este periodo.
         </Text>
@@ -92,6 +98,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 30,
   },
-  emptyStateEmoji: { fontSize: 36, marginBottom: 8 },
+  emptyStateIcon: { marginBottom: 8 },
   emptyStateText: { fontSize: 13, color: '#888', textAlign: 'center' },
 });

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { PoopConsistency } from '../../domain/entities/Dropping';
 import {
   ClinicalMetrics,
@@ -59,7 +60,12 @@ export const ClinicalMetricsChart: React.FC<Props> = ({ metrics }) => {
   if (!metrics || metrics.totalCount === 0) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyStateEmoji}>📈</Text>
+        <Ionicons
+          name="trending-up-outline"
+          size={28}
+          color={colors.textMuted}
+          style={styles.emptyStateIcon}
+        />
         <Text style={styles.emptyStateText}>
           No hay suficientes registros en este periodo para generar gráficas.
         </Text>
@@ -181,7 +187,7 @@ const createStyles = (colors: ThemeColors) =>
       justifyContent: 'center',
       paddingVertical: 24,
     },
-    emptyStateEmoji: { fontSize: 32, marginBottom: 8 },
+    emptyStateIcon: { marginBottom: 8 },
     emptyStateText: {
       fontSize: 12,
       color: colors.textMuted,

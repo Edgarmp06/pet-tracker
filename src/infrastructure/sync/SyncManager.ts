@@ -2,15 +2,18 @@ import NetInfo, { NetInfoSubscription } from '@react-native-community/netinfo';
 import { Pet, PetProps } from '../../domain/entities/Pet';
 import { Dropping, DroppingProps } from '../../domain/entities/Dropping';
 import { Walk, WalkProps } from '../../domain/entities/Walk';
+import { WeightEntry, WeightEntryProps } from '../../domain/entities/WeightEntry';
 import { IPetRepository } from '../../domain/ports/IPetRepository';
 import { IDroppingRepository } from '../../domain/ports/IDroppingRepository';
 import { IWalkRepository } from '../../domain/ports/IWalkRepository';
+import { IWeightRepository } from '../../domain/ports/IWeightRepository';
 import { QueuedOperation, SyncQueue } from './SyncQueue';
 
 interface RemoteRepositories {
   pet?: IPetRepository;
   dropping?: IDroppingRepository;
   walk?: IWalkRepository;
+  weight?: IWeightRepository;
 }
 
 /**
@@ -95,6 +98,15 @@ export class SyncManager {
     if (op.entity === 'walk' && this.remoteRepositories.walk) {
       if (op.type === 'upsert') {
         await this.remoteRepositories.walk.save(new Walk(op.payload as WalkProps));
+      }
+      return true;
+    }
+
+    if (op.entity === 'weight' && this.remoteRepositories.weight) {
+      if (op.type === 'upsert') {
+        await this.remoteRepositories.weight.save(
+          new WeightEntry(op.payload as WeightEntryProps),
+        );
       }
       return true;
     }

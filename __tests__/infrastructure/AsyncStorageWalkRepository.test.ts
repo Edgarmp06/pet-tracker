@@ -63,4 +63,38 @@ describe('AsyncStorageWalkRepository', () => {
     expect(await repository.findById('walk-A')).not.toBeNull();
     expect(await repository.findById('walk-B')).not.toBeNull();
   });
+
+  it('findCompletedByPetId solo devuelve paseos finalizados de esa mascota', async () => {
+    const repository = new AsyncStorageWalkRepository();
+
+    const finished = new Walk({
+      id: 'walk-finished',
+      petIds: ['pet-A'],
+      startTime: new Date('2026-01-01T10:00:00Z'),
+      route: [],
+    });
+    finished.endWalk(new Date('2026-01-01T10:30:00Z'));
+    await repository.save(finished);
+
+    await repository.save(
+      new Walk({
+        id: 'walk-active',
+        petIds: ['pet-A'],
+        startTime: new Date(),
+        route: [],
+      }),
+    );
+    const otherPetFinished = new Walk({
+      id: 'walk-other-pet',
+      petIds: ['pet-B'],
+      startTime: new Date(),
+      route: [],
+    });
+    otherPetFinished.endWalk(new Date());
+    await repository.save(otherPetFinished);
+
+    const completed = await repository.findCompletedByPetId('pet-A');
+    expect(completed).toHaveLength(1);
+    expect(completed[0].id).toBe('walk-finished');
+  });
 });

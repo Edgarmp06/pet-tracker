@@ -8,8 +8,10 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import i18n from '../../infrastructure/i18n';
 import { MapViewComponent } from '../components/MapViewComponent';
 import { HeatmapView } from '../components/HeatmapView';
@@ -68,6 +70,9 @@ export const WalkScreen = () => {
 
   // Mapa de calor
   const [isHeatmapVisible, setIsHeatmapVisible] = useState(false);
+  const [isHeatmapPetSelectorVisible, setIsHeatmapPetSelectorVisible] =
+    useState(false);
+  const [heatmapPet, setHeatmapPet] = useState<Pet | null>(null);
   const [heatmapRangeDays, setHeatmapRangeDays] = useState<HeatmapRangeDays>(30);
   const [heatmapPoints, setHeatmapPoints] = useState<DroppingHeatPoint[]>([]);
   const [isLoadingHeatmap, setIsLoadingHeatmap] = useState(false);
@@ -200,8 +205,22 @@ export const WalkScreen = () => {
       return;
     }
 
-    if (pets.length === 1) {
-      await startWalkWithPets(pets);
+    // Los gatos marcados como "no sale de paseo" no participan en el flujo
+    // de paseo: su comida, medicina y deposiciones en casa se registran
+    // desde su perfil (pestaña Perfil), no desde aquí.
+    const walkingPets = pets.filter((pet) => pet.goesOnWalks);
+
+    if (walkingPets.length === 0) {
+      Alert.alert(
+        'Ninguna mascota sale de paseo',
+        'Tus mascotas actuales están marcadas como que no salen de paseo. ' +
+          'Puedes registrar su comida, medicina y deposiciones en casa desde su perfil.',
+      );
+      return;
+    }
+
+    if (walkingPets.length === 1) {
+      await startWalkWithPets(walkingPets);
       return;
     }
 
@@ -308,10 +327,9 @@ export const WalkScreen = () => {
     setIsModalVisible(true);
   };
 
-  const loadHeatmap = async (days: HeatmapRangeDays) => {
+  const loadHeatmap = async (pet: Pet, days: HeatmapRangeDays) => {
     setIsLoadingHeatmap(true);
     try {
-      const pet = await ensureActivePet();
       const points = await getPetDroppingLocationsUseCase.execute(pet.id, days);
       setHeatmapPoints(points);
     } catch (error) {
@@ -325,14 +343,42 @@ export const WalkScreen = () => {
     }
   };
 
-  const handleOpenHeatmap = () => {
+  const openHeatmapForPet = (pet: Pet) => {
+    setHeatmapPet(pet);
     setIsHeatmapVisible(true);
-    loadHeatmap(heatmapRangeDays);
+    loadHeatmap(pet, heatmapRangeDays);
+  };
+
+  const handleOpenHeatmap = async () => {
+    // Paseo conjunto con varias mascotas: no asumimos cuál, lo preguntamos
+    // (igual que "¿Quién lo hizo?"), en vez de mostrar siempre los datos de
+    // la mascota "activa" del perfil aunque no sea una de las que pasean.
+    if (participatingPets.length > 1) {
+      setIsHeatmapPetSelectorVisible(true);
+      return;
+    }
+
+    try {
+      const pet = participatingPets[0] || (await ensureActivePet());
+      openHeatmapForPet(pet);
+    } catch (error) {
+      console.error('Error al determinar la mascota del mapa de calor:', error);
+      Alert.alert(
+        'No se pudo abrir el mapa de calor',
+        'Ocurrió un problema al identificar la mascota. Inténtalo de nuevo.',
+      );
+    }
+  };
+
+  const handleHeatmapPetSelected = (selectedPets: Pet[]) => {
+    setIsHeatmapPetSelectorVisible(false);
+    const pet = selectedPets[0];
+    if (pet) openHeatmapForPet(pet);
   };
 
   const handleChangeHeatmapRange = (days: HeatmapRangeDays) => {
     setHeatmapRangeDays(days);
-    loadHeatmap(days);
+    if (heatmapPet) loadHeatmap(heatmapPet, days);
   };
 
   const handleSavePoop = async (values: DroppingFormValues) => {
@@ -382,7 +428,13 @@ export const WalkScreen = () => {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
+    <View style={styles.flex}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 20 },
+        ]}
+      >
       <Text style={styles.title}>{i18n.t('welcome')}</Text>
 
       <View style={styles.activePetBanner}>
@@ -392,17 +444,20 @@ export const WalkScreen = () => {
             style={styles.activePetAvatar}
           />
         ) : (
-          <Text style={styles.activePetEmoji}>🐶</Text>
+          <Ionicons name="paw" size={18} color={colors.textMuted} />
         )}
         <Text style={styles.activePetText}>
           {isLoadingPet
             ? 'Cargando mascota activa...'
             : isWalking && participatingPets.length > 0
-              ? `Paseando con ${participatingPets.map((pet) => pet.name).join(' y ')} 🔒`
+              ? `Paseando con ${participatingPets.map((pet) => pet.name).join(' y ')}`
               : activePet
                 ? `Paseando con ${activePet.name}`
                 : 'Sin mascota activa'}
         </Text>
+        {isWalking && participatingPets.length > 0 && (
+          <Ionicons name="lock-closed" size={13} color={colors.textMuted} />
+        )}
       </View>
 
       <MapViewComponent
@@ -412,7 +467,8 @@ export const WalkScreen = () => {
       />
 
       <TouchableOpacity style={styles.heatmapBtn} onPress={handleOpenHeatmap}>
-        <Text style={styles.heatmapBtnText}>🔥 Mapa de calor</Text>
+        <Ionicons name="flame-outline" size={14} color={colors.danger} />
+        <Text style={styles.heatmapBtnText}>Mapa de calor</Text>
       </TouchableOpacity>
 
       {!isWalking ? (
@@ -450,7 +506,7 @@ export const WalkScreen = () => {
       <PetSelectorModal
         visible={isPetSelectorVisible}
         title="¿Con qué mascotas vas a pasear?"
-        pets={pets}
+        pets={pets.filter((pet) => pet.goesOnWalks)}
         multiSelect
         initialSelectedIds={activePet ? [activePet.id] : []}
         confirmLabel="Empezar paseo"
@@ -470,6 +526,16 @@ export const WalkScreen = () => {
         onConfirm={handleWhoDidItConfirm}
       />
 
+      <PetSelectorModal
+        visible={isHeatmapPetSelectorVisible}
+        title="¿De qué mascota quieres ver el mapa de calor?"
+        pets={participatingPets}
+        multiSelect={false}
+        confirmLabel="Ver mapa de calor"
+        onClose={() => setIsHeatmapPetSelectorVisible(false)}
+        onConfirm={handleHeatmapPetSelected}
+      />
+
       <Modal
         visible={isHeatmapVisible}
         animationType="slide"
@@ -478,9 +544,12 @@ export const WalkScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              🔥 Mapa de calor de deposiciones
-            </Text>
+            <View style={styles.modalTitleRow}>
+              <Ionicons name="flame-outline" size={18} color={colors.text} />
+              <Text style={styles.modalTitle}>
+                Mapa de calor{heatmapPet ? ` — ${heatmapPet.name}` : ''}
+              </Text>
+            </View>
 
             <View style={styles.optionsRow}>
               {([7, 30] as HeatmapRangeDays[]).map((days) => (
@@ -524,15 +593,19 @@ export const WalkScreen = () => {
           </View>
         </View>
       </Modal>
+      </ScrollView>
     </View>
   );
 };
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    container: {
+    flex: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+    container: {
+      flexGrow: 1,
       paddingHorizontal: 20,
       paddingBottom: 20,
       alignItems: 'center',
@@ -554,8 +627,14 @@ const createStyles = (colors: ThemeColors) =>
       elevation: 2,
     },
     activePetAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
-    activePetEmoji: { fontSize: 18, marginRight: 8 },
-    activePetText: { fontSize: 13, fontWeight: '600', color: colors.text },
+    activePetText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.text,
+      marginLeft: 8,
+      marginRight: 6,
+      flexShrink: 1,
+    },
     button: {
       paddingVertical: 14,
       paddingHorizontal: 30,
@@ -576,6 +655,9 @@ const createStyles = (colors: ThemeColors) =>
     },
     poopText: { color: colors.white, fontSize: 20, fontWeight: 'bold' },
     heatmapBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.danger,
@@ -605,10 +687,16 @@ const createStyles = (colors: ThemeColors) =>
       width: '100%',
       elevation: 5,
     },
+    modalTitleRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 15,
+    },
     modalTitle: {
       fontSize: 20,
       fontWeight: 'bold',
-      marginBottom: 15,
       textAlign: 'center',
       color: colors.text,
     },

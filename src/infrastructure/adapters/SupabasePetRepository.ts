@@ -11,6 +11,7 @@ interface PetRow {
   avatar_uri: string | null;
   species: string | null;
   gender: string | null;
+  goes_on_walks: boolean | null;
 }
 
 const toPet = (row: PetRow): Pet =>
@@ -23,6 +24,7 @@ const toPet = (row: PetRow): Pet =>
     avatarUri: row.avatar_uri ?? undefined,
     species: (row.species as PetSpecies) ?? undefined,
     gender: (row.gender as PetGender) ?? undefined,
+    goesOnWalks: row.goes_on_walks ?? undefined,
   });
 
 const toRow = (pet: Pet): PetRow => ({
@@ -34,6 +36,7 @@ const toRow = (pet: Pet): PetRow => ({
   avatar_uri: pet.avatarUri ?? null,
   species: pet.species ?? null,
   gender: pet.gender ?? null,
+  goes_on_walks: pet.goesOnWalks,
 });
 
 /**

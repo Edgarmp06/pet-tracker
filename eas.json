@@ -22,7 +22,7 @@
     "production": {
       "android": {
         "serviceAccountKeyPath": "./secrets/play-service-account.json",
-        "track": "internal"
+        "track": "production"
       }
     }
   }

@@ -397,29 +397,61 @@ img {
   font-size: 0.95rem;
 }
 
-.screenshots-grid {
-  display: flex;
-  gap: 18px;
-  overflow-x: auto;
-  padding: 8px 4px 20px;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
+.screenshots-marquee {
+  overflow: hidden;
+  padding: 8px 0 20px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
 }
 
-.screenshots-grid img {
+.screenshots-track {
+  display: flex;
+  gap: 14px;
+  width: max-content;
+  animation: screenshots-scroll 80s linear infinite;
+}
+
+.screenshots-marquee:hover .screenshots-track {
+  animation-play-state: paused;
+}
+
+.screenshots-track img {
   flex: 0 0 auto;
-  width: 220px;
+  width: 120px;
   height: auto;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-sm);
-  scroll-snap-align: start;
   transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
-.screenshots-grid img:hover {
-  transform: translateY(-4px);
+.screenshots-track img:hover {
+  transform: translateY(-4px) scale(1.03);
   box-shadow: var(--shadow-md);
+}
+
+@media (min-width: 640px) {
+  .screenshots-track img {
+    width: 150px;
+  }
+}
+
+@keyframes screenshots-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* La pista tiene las 11 capturas duplicadas: mover exactamente la mitad
+       de su ancho hace que el final empalme con el principio sin salto. */
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screenshots-track {
+    animation: none;
+    overflow-x: auto;
+  }
 }
 
 /* Credits / About */
